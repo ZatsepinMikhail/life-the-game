@@ -3,7 +3,7 @@ project(LifeTheGame)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lpthread")
 
-set(SOURCE_FILES master.cpp field.cpp field.cpp worker.cpp)
+set(SOURCE_FILES main.cpp field.cpp field.cpp worker.cpp master.cpp)
 add_executable(LifeTheGame ${SOURCE_FILES})
 
 target_link_libraries(LifeTheGame -lpthread)

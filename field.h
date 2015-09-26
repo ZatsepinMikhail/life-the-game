@@ -1,21 +1,6 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <random>
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
-
-#include <pthread.h>
-#include <semaphore.h>
-#include <sys/types.h>
-#include <cstdlib>
-#include <chrono>
-
-using std::vector;
-using std::string;
-
+#include "dependencies.h"
 
 struct Field {
   Field() {}
@@ -24,8 +9,8 @@ struct Field {
 
   void show_field();
 
-  size_t height_;
-  size_t width_;
+  int height_;
+  int width_;
   vector<vector<bool>> field_;
 
 private:

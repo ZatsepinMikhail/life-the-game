@@ -1,17 +1,6 @@
 #pragma once
 
 #include "field.h"
-#include <ratio>
-
-//using namespace std::chrono;
-
-unsigned int max_iteration = 0;
-unsigned short workers_number = 0;
-
-bool game_finished = false;
-
-vector<pthread_mutex_t> border_mutexes;
-vector<pthread_cond_t> border_cond_variables;
 
 /*
 There are 3 states of each thread:
@@ -19,14 +8,6 @@ There are 3 states of each thread:
 1 - only left border is red by other worker
 2 - two borders are red by other workers
 */
-vector<unsigned char> worker_states;
-
-vector<unsigned int> worker_iterations;
-
-vector<sem_t> iteration_semaphores;
-
-pthread_mutex_t game_finished_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t game_finished_cond_variable;
 
 struct WorkerFuncArg {
   Field* field;
