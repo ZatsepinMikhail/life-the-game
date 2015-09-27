@@ -1,5 +1,8 @@
 #include "worker.h"
 
+clock_t start_time;
+clock_t end_time;
+
 unsigned int max_iteration = 0;
 unsigned short workers_number = 0;
 
@@ -38,11 +41,11 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
   alive_neighbour_number += life_field->field_[row][cell == 0 ? width - 1 : cell - 1];
   alive_neighbour_number += life_field->field_[row][(cell + 1) % width];
 
-  if (need_extra_row != ExtraRowType::NO) {
+  if (need_extra_row != NO_ROW) {
     alive_neighbour_number += extra_row[cell == 0 ? width - 1 : cell - 1];
     alive_neighbour_number += extra_row[(cell + 1) % width];
     alive_neighbour_number += extra_row[cell];
-    if (need_extra_row == ExtraRowType::LOWER) {
+    if (need_extra_row == LOWER_ROW) {
       lower_bound_shift = 1;
     } else {
       upper_bound_shift = -1;
@@ -62,27 +65,27 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
 
 
 void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound,
-                       const vector<vector<bool>>& neighbour_rows) {
+                       const vector<vector<bool> >& neighbour_rows) {
 
   int width = life_field->width_;
 
   //make local copy
   vector<bool> empty_initializer(width, false);
-  vector<vector<bool>> local_copy_of_field(upper_bound - lower_bound + 1, empty_initializer);
+  vector<vector<bool> > local_copy_of_field(upper_bound - lower_bound + 1, empty_initializer);
 
   for (int i = lower_bound; i <= upper_bound; ++i) {
     for (int j = 0; j < width; ++j) {
       if (i == lower_bound) {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::LOWER, neighbour_rows[0]);
+        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, LOWER_ROW, neighbour_rows[0]);
 
       } else if (i == upper_bound) {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::UPPER, neighbour_rows[1]);
+        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, UPPER_ROW, neighbour_rows[1]);
 
       } else {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::NO, empty_initializer);
+        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, NO_ROW, empty_initializer);
 
       }
     }
@@ -108,13 +111,12 @@ bool NeedNextStep(int worker_id) {
 
   if (!result) {
 
-    /*if (worker_id == 0) {
-      steady_clock::time_point end_time = steady_clock::now();
+    //time measurement
+    if (worker_id == 0) {
+      end_time = clock();
 
-      duration<double> time_span = duration_cast<duration<double>>(end_time - start_time);
-
-      std::cout << "It took me " << time_span.count() << " seconds.";
-    }*/
+      std::cout << "It took me " << (end_time - start_time)/(double)CLOCKS_PER_SEC << " seconds.";
+    }
 
     pthread_mutex_lock(&game_finished_mutex);
     while(worker_iterations[worker_id] >= max_iteration && !game_finished) {
@@ -151,11 +153,11 @@ void* WorkerFunction(void* structed_args) {
   int upper_neighbour_row_index = (upper_bound + 1) % height;
 
   vector<bool> empty_initializer(width, false);
-  vector<vector<bool>> neighbour_rows(2, empty_initializer);
+  vector<vector<bool> > neighbour_rows(2, empty_initializer);
 
-  /*if (worker_id == 0) {
-    start_time = steady_clock::now();
-  }*/
+  if (worker_id == 0) {
+    start_time = clock();
+  }
 
   while(NeedNextStep(worker_id)) {
 

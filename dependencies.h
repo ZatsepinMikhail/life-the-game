@@ -1,12 +1,10 @@
 #pragma once
 
-#include <chrono>
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <pthread.h>
-#include <random>
-#include <ratio>
 #include <semaphore.h>
 #include <stdexcept>
 #include <string>

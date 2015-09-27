@@ -11,7 +11,7 @@ struct Field {
 
   int height_;
   int width_;
-  vector<vector<bool>> field_;
+  vector<vector<bool> > field_;
 
 private:
 

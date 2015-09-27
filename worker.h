@@ -14,10 +14,10 @@ struct WorkerFuncArg {
   int id; 
 };
 
-enum class ExtraRowType {
-  UPPER, 
-  LOWER, 
-  NO
+enum ExtraRowType {
+  UPPER_ROW,
+  LOWER_ROW,
+  NO_ROW
 };
 
 //steady_clock::time_point start_time;
@@ -27,7 +27,7 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
 
 
 void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound, 
-                       const vector<vector<bool>>& neighbour_rows);
+                       const vector<vector<bool> >& neighbour_rows);
 
 bool NeedNextStep(int worker_id, Field* life_field);
 

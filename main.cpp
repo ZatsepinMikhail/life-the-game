@@ -59,7 +59,7 @@ int main() {
 
         //get threads number
         try {
-          workers_number = std::stoi(workers_number_string);
+          workers_number = std::atoi(workers_number_string.c_str());
           if (workers_number <= 0) {
             cout << "The number of workers can't be negative or zero. Enter correct value, please.\n";
             break;
@@ -122,7 +122,7 @@ int main() {
         int steps_number;
 
         try {
-          steps_number = std::stoi(steps_number_string);
+          steps_number = std::atoi(steps_number_string.c_str());
         } catch(std::invalid_argument& e) {
           cout << "Enter correct NUMBER of steps, please.\n";
           break;
