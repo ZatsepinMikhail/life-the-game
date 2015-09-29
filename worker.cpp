@@ -19,19 +19,19 @@ vector<unsigned char> worker_states;
 vector<unsigned int> worker_iterations;
 
 
-bool CalculateOneCell(Field* life_field, int row, int cell,
-                      ExtraRowType need_extra_row, const vector<bool>& extra_row) {
+bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
+                      ExtraRowType need_extra_row, bool* extra_row) {
 
   int alive_neighbour_number = 0;
-  int width = life_field->width_;
-  int height = life_field->height_;
+  int width = field[0].size();
+  int height = field.size();
 
   int lower_bound_shift = -1;
   int upper_bound_shift = 1;
 
   //process cell's row
-  alive_neighbour_number += life_field->field_[row][cell == 0 ? width - 1 : cell - 1];
-  alive_neighbour_number += life_field->field_[row][(cell + 1) % width];
+  alive_neighbour_number += field[row][cell == 0 ? width - 1 : cell - 1];
+  alive_neighbour_number += field[row][(cell + 1) % width];
 
   if (need_extra_row != ExtraRowType::NO) {
     alive_neighbour_number += extra_row[cell == 0 ? width - 1 : cell - 1];
@@ -47,44 +47,43 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
     int current_row = (row + i < 0) ? height - 1 : ((row + i) % height);
     for (int j = -1; j <= 1; ++j) {
       int current_cell = (cell + j < 0) ? (width - 1) : ((cell + j) % width);
-      alive_neighbour_number += life_field->field_[current_row][current_cell];
+      alive_neighbour_number += field[current_row][current_cell];
     }
   }
 
-  return (!life_field->field_[row][cell] && alive_neighbour_number == 3) ||
-         (life_field->field_[row][cell] && alive_neighbour_number >= 2 && alive_neighbour_number <= 3);
+  return (!field[row][cell] && alive_neighbour_number == 3) ||
+         (field[row][cell] && alive_neighbour_number >= 2 && alive_neighbour_number <= 3);
 }
 
 
-void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound,
-                       const vector<vector<bool>>& neighbour_rows) {
+void CalculateNextStep(vector<vector<bool> >& field_peace,
+                       bool* lower_raw_row, bool* upper_raw_row) {
 
-  int width = life_field->width_;
+  int width = field_peace[0].size();
+  int height = field_peace.size();
 
-  //make local copy
-  vector<bool> empty_initializer(width, false);
-  vector<vector<bool>> local_copy_of_field(upper_bound - lower_bound + 1, empty_initializer);
+  vector<vector<bool>> next_step_field_peace(field_peace);
 
-  for (int i = lower_bound; i <= upper_bound; ++i) {
+  for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
-      if (i == lower_bound) {
+      if (i == 0) {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::LOWER, neighbour_rows[0]);
+        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::LOWER, lower_raw_row);
 
-      } else if (i == upper_bound) {
+      } else if (i == height - 1) {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::UPPER, neighbour_rows[1]);
+        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::UPPER, upper_raw_row);
 
       } else {
 
-        local_copy_of_field[i - lower_bound][j] = CalculateOneCell(life_field, i, j, ExtraRowType::NO, empty_initializer);
+        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::NO, NULL);
 
       }
     }
   }
 
-  for (int i = lower_bound; i <= upper_bound; ++i) {
-    life_field->field_[i] = local_copy_of_field[i - lower_bound];
+  for (int i = 0; i < height; ++i) {
+    field_peace[i] = next_step_field_peace[i];
   }
 }
 
@@ -135,9 +134,19 @@ void StructureFieldPeaceRaw(bool* raw_field, vector<vector<bool> >& structured_f
   }
 }
 
-void SerializeRow(const vector<bool>& row, bool* raw_row, const int width) {
-  for (int i = 0; i < width; ++i) {
+
+void SerializeRow(const vector<bool>& row, bool* raw_row) {
+  for (int i = 0; i < row.size(); ++i) {
     raw_row[i] = row[i];
+  }
+}
+
+void SerializeField(const vector<vector<bool> >& field, bool* raw_field) {
+  int shift = 0;
+  int width = field[0].size();
+  for (int i = 0; i < field.size(); ++i) {
+    SerializeRow(field[i], raw_field + shift);
+    shift += width;
   }
 }
 
@@ -165,41 +174,45 @@ void WorkerRoutine(const int comm_size, const int rank) {
 
   vector<vector<bool>> neighbour_rows(2, empty_initializer);
 
-  bool* lower_raw_row = new bool(width);
-  bool* upper_raw_row = new bool(width);
+  bool* lower_raw_row_send = new bool(width);
+  bool* upper_raw_row_send = new bool(width);
+  bool* lower_raw_row_recv = new bool(width);
+  bool* upper_raw_row_recv = new bool(width);
 
+  //while(NeedNextStep(rank)) {
 
-  while(NeedNextStep(rank)) {
+    int curr_structed_raw_send = 0;
 
-    int curr_neighbour_raw_index = 0;
-    int curr_neighbour_rank = lower_worker_rank;
-    bool* curr_raw_row = lower_raw_row;
+    int curr_neighbour_rank_send = lower_worker_rank;
+    int curr_neighbour_rank_recv = upper_worker_rank;
+
+    bool* curr_raw_row_send = lower_raw_row_send;
+    bool* curr_raw_row_recv = upper_raw_row_recv;
 
     for (int i = 0; i < 2; ++i) {
-      SerializeRow(field_peace[curr_neighbour_raw_index], curr_raw_row, width);
-      MPI_Sendrecv()
+      SerializeRow(field_peace[curr_structed_raw_send], curr_raw_row_send);
+      MPI_Sendrecv(curr_raw_row_send, width, MPI::BOOL, curr_neighbour_rank_send, ROW_EXCHANGE
+                   curr_raw_row_recv, width, MPI::BOOL, curr_neighbour_rank_recv, ROW_EXCHANGE,
+                   MPI_COMM_WORLD, &status);
 
-      curr_neighbour_rank = upper_worker_rank;
-      curr_raw_row = upper_raw_row;
-      curr_neighbour_raw_index = height - 1;
+      curr_neighbour_rank_send = upper_worker_rank;
+      curr_neighbour_rank_recv = lower_worker_rank;
+
+      curr_raw_row_send = upper_raw_row_send;
+      curr_raw_row_recv = lower_raw_row_recv;
+
+      curr_structed_raw_send = height - 1;
     }
 
-    pthread_mutex_lock(&border_mutexes[worker_id]);
-    while(worker_states[worker_id] != 2) {
-      pthread_cond_wait(&border_cond_variables[worker_id], &border_mutexes[worker_id]);
-    }
+    CalculateNextStep(field_peace, lower_raw_row_recv, upper_raw_row_recv);
+//  }
 
-    pthread_mutex_unlock(&border_mutexes[worker_id]);
+  SerializeField(field_peace, raw_field_peace);
+  MPI_Send(raw_field_peace, peace_size, MPI::BOOL, 0, GATHER_NEXT_STEP, MPI_COMM_WORLD);
 
-    CalculateNextStep(life_field, lower_bound, upper_bound, neighbour_rows);
-
-
-    pthread_mutex_lock(&border_mutexes[worker_id]);
-
-    worker_states[worker_id] = 0;
-    pthread_cond_broadcast(&border_cond_variables[worker_id]);
-    pthread_mutex_unlock(&border_mutexes[worker_id]);
-  }
-
-  */
+  delete[] raw_field_peace;
+  delete[] lower_raw_row_recv;
+  delete[] lower_raw_row_send;
+  delete[] upper_raw_row_recv;
+  delete[] upper_raw_row_send;
 }

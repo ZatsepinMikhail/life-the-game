@@ -20,5 +20,6 @@ using std::string;
 enum MessageType {
   INITIAL_FIELD_INFO,
   INITIAL_FIELD,
-  ROW_EXCHANGE
+  ROW_EXCHANGE,
+  GATHER_NEXT_STEP
 };

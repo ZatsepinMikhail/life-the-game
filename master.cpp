@@ -123,6 +123,7 @@ void MasterRoutine(const int comm_size) {
           std::cout << "The system can't show status in this state (" << current_state << ")\n";
           break;
         }
+
         std::cout << "current_iteration = " << max_iteration << "\n";
         life_field->show_field();
         break;
