@@ -113,9 +113,9 @@ bool NeedNextStep(int worker_id) {
 
     //time measurement
     if (worker_id == 0) {
-      end_time = clock();
+      time(&end_time);
 
-      std::cout << "It took me " << (end_time - start_time)/(double)CLOCKS_PER_SEC << " seconds.";
+      std::cout << "It took me " << difftime(end_time, start_time) << " seconds\n";
     }
 
     pthread_mutex_lock(&game_finished_mutex);
@@ -156,7 +156,7 @@ void* WorkerFunction(void* structed_args) {
   vector<vector<bool> > neighbour_rows(2, empty_initializer);
 
   if (worker_id == 0) {
-    start_time = clock();
+    time(&start_time);
   }
 
   while(NeedNextStep(worker_id)) {
