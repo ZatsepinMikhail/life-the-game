@@ -32,3 +32,5 @@ void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound,
 bool NeedNextStep(int worker_id, Field* life_field);
 
 void WorkerRoutine(const int worker_number, const int rank);
+
+void StructureFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field);

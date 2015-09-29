@@ -23,17 +23,13 @@ CommandType ParseCommand(std::string input_string) {
   return result_command;
 }
 
-bool* GetBuffer(Field* life_field, const int start_row, const int row_number) {
-  bool* buffer = new bool(row_number * life_field->width_);
+void GetBuffer(Field* life_field, const int start_row, const int row_number, bool* buffer) {
   int curr_index = 0;
   for (int i = 0; i < row_number; ++i) {
     for (int j = 0; j < life_field->width_; ++j, ++curr_index) {
       buffer[curr_index] = life_field->field_[i + start_row][j];
-      std::cout << buffer[curr_index];
     }
   }
-  std::cout << "\n";
-  return buffer;
 }
 
 void MasterRoutine(const int comm_size) {
@@ -42,24 +38,12 @@ void MasterRoutine(const int comm_size) {
 
   std::string command;
   Field* life_field;
+  bool* field_buffer;
 
   //while(!game_finished) {
     std::cout << "$: ";
     std::cin >> command;
     CommandType current_command = ParseCommand(command);
-
-    //maybe workers have already finished
-    /*if (current_state == RUNNING) {
-
-      LockIterationSemaphores();
-
-      int current_min_iteration = GetExtremeCurrentIteration(MIN_EXTREME);
-      if (current_min_iteration == max_iteration) {
-        current_state = STARTED_NOT_RUNNING;
-      }
-
-      UnlockIterationSemaphores();
-    }*/
 
     switch (current_command) {
       case START: {
@@ -89,31 +73,44 @@ void MasterRoutine(const int comm_size) {
         initial_field_info[0] = life_field->height_ / (comm_size - 1);
         initial_field_info[1] = life_field->width_;
 
-        int start_peace_index = 0;
+        int start_piece_index = 0;
 
         life_field->show_field();
 
         std::cout << "----------------------\n";
 
+        field_buffer = new bool[life_field->height_ * life_field->width_];
+
         for (int i = 1; i < comm_size; ++i) {
           if (i == comm_size - 1) {
             initial_field_info[0] += life_field->height_ % (comm_size - 1);
           }
-          MPI_Send(&initial_field_info, 2, MPI::INT, i, INITIAL_FIELD_INFO, MPI_COMM_WORLD);
+          MPI_Send(initial_field_info, 2, MPI::INT, i, INITIAL_FIELD_INFO, MPI_COMM_WORLD);
 
-          bool* field_buffer = GetBuffer(life_field, start_peace_index, initial_field_info[0]);
+          GetBuffer(life_field, start_piece_index, initial_field_info[0], field_buffer);
 
           MPI_Send(field_buffer, initial_field_info[0] * life_field->width_, MPI::BOOL,
                    i, INITIAL_FIELD, MPI_COMM_WORLD);
 
-          start_peace_index += initial_field_info[0];
+          start_piece_index += initial_field_info[0];
         }
 
-        std::cout << "SENDED\n";
+        MPI_Status status;
+        initial_field_info[0] = life_field->height_ / (comm_size - 1);
 
-        //initialize workers' structures
-        //InitializeWorkerStructures(workers);
+        bool* curr_start_point = field_buffer;
+        for (int i = 1; i < comm_size; ++i) {
+          if (i == comm_size - 1) {
+            initial_field_info[0] += life_field->height_ % (comm_size - 1);
+          }
+          MPI_Recv(curr_start_point, initial_field_info[0] * life_field->width_, MPI::BOOL,
+                   i, GATHER_NEXT_STEP, MPI_COMM_WORLD, &status);
+          curr_start_point += initial_field_info[0] * life_field->width_;
+        }
 
+        StructureFieldPieceRaw(field_buffer, life_field->field_);
+
+        life_field->show_field();
         current_state = STARTED_NOT_RUNNING;
         break;
       }

@@ -43,6 +43,7 @@ bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
       upper_bound_shift = -1;
     }
   }
+
   for (int i = lower_bound_shift; i <= upper_bound_shift; i += 2) {
     int current_row = (row + i < 0) ? height - 1 : ((row + i) % height);
     for (int j = -1; j <= 1; ++j) {
@@ -53,37 +54,38 @@ bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
 
   return (!field[row][cell] && alive_neighbour_number == 3) ||
          (field[row][cell] && alive_neighbour_number >= 2 && alive_neighbour_number <= 3);
+  return true;
 }
 
 
-void CalculateNextStep(vector<vector<bool> >& field_peace,
+void CalculateNextStep(vector<vector<bool> >& field_piece,
                        bool* lower_raw_row, bool* upper_raw_row) {
 
-  int width = field_peace[0].size();
-  int height = field_peace.size();
+  int width = field_piece[0].size();
+  int height = field_piece.size();
 
-  vector<vector<bool>> next_step_field_peace(field_peace);
+  vector<vector<bool>> next_step_field_piece(field_piece);
 
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
       if (i == 0) {
 
-        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::LOWER, lower_raw_row);
+        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::LOWER, lower_raw_row);
 
       } else if (i == height - 1) {
 
-        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::UPPER, upper_raw_row);
+        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::UPPER, upper_raw_row);
 
       } else {
 
-        next_step_field_peace[i][j] = CalculateOneCell(field_peace, i, j, ExtraRowType::NO, NULL);
+        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::NO, NULL);
 
       }
     }
   }
 
   for (int i = 0; i < height; ++i) {
-    field_peace[i] = next_step_field_peace[i];
+    field_piece[i] = next_step_field_piece[i];
   }
 }
 
@@ -123,12 +125,10 @@ void CalculateNextStep(vector<vector<bool> >& field_peace,
   return result;
 }*/
 
-
-void StructureFieldPeaceRaw(bool* raw_field, vector<vector<bool> >& structured_field,
-                            const int height, const int width) {
+void StructureFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field) {
   int curr_index = 0;
-  for (int i = 0; i < height; ++i) {
-    for (int j = 0; j < width; ++j, ++curr_index) {
+  for (int i = 0; i < structured_field.size(); ++i) {
+    for (int j = 0; j < structured_field[0].size(); ++j, ++curr_index) {
       structured_field[i][j] = raw_field[curr_index];
     }
   }
@@ -152,7 +152,7 @@ void SerializeField(const vector<vector<bool> >& field, bool* raw_field) {
 
 void WorkerRoutine(const int comm_size, const int rank) {
 
-  //get field peace
+  //get field piece
   int initial_field_info[2];
 
   MPI_Status status;
@@ -161,58 +161,62 @@ void WorkerRoutine(const int comm_size, const int rank) {
   int height = initial_field_info[0];
   int width = initial_field_info[1];
 
-  int peace_size = width * height;
-  bool* raw_field_peace = new bool(peace_size);
-  MPI_Recv(raw_field_peace, peace_size, MPI::BOOL, 0, INITIAL_FIELD, MPI_COMM_WORLD, &status);
+  int piece_size = width * height;
+
+  bool* raw_field_piece = new bool[piece_size];
+  MPI_Recv(raw_field_piece, piece_size, MPI::BOOL, 0, INITIAL_FIELD, MPI_COMM_WORLD, &status);
 
   vector<bool> empty_initializer(width, false);
-  vector<vector<bool> > field_peace(height, empty_initializer);
-  StructureFieldPeaceRaw(raw_field_peace, field_peace, height, width);
+  vector<vector<bool> > field_piece(height, empty_initializer);
+  StructureFieldPieceRaw(raw_field_piece, field_piece);
+  //end
 
   int lower_worker_rank = (rank == 1) ? (comm_size - 1) : (rank - 1);
   int upper_worker_rank = (rank == comm_size - 1) ? 1 : (rank + 1);
 
-  vector<vector<bool>> neighbour_rows(2, empty_initializer);
+  //vector<vector<bool>> neighbour_rows(2, empty_initializer);
 
-  bool* lower_raw_row_send = new bool(width);
-  bool* upper_raw_row_send = new bool(width);
-  bool* lower_raw_row_recv = new bool(width);
-  bool* upper_raw_row_recv = new bool(width);
+  bool* lower_raw_row_send = new bool[width];
+  bool* upper_raw_row_send = new bool[width];
+  bool* lower_raw_row_recv = new bool[width];
+  bool* upper_raw_row_recv = new bool[width];
 
-  //while(NeedNextStep(rank)) {
 
-    int curr_structed_raw_send = 0;
+  //while
 
-    int curr_neighbour_rank_send = lower_worker_rank;
-    int curr_neighbour_rank_recv = upper_worker_rank;
+  int curr_structed_raw_send = 0;
 
-    bool* curr_raw_row_send = lower_raw_row_send;
-    bool* curr_raw_row_recv = upper_raw_row_recv;
+  int curr_neighbour_rank_send = lower_worker_rank;
+  int curr_neighbour_rank_recv = upper_worker_rank;
 
-    for (int i = 0; i < 2; ++i) {
-      SerializeRow(field_peace[curr_structed_raw_send], curr_raw_row_send);
-      MPI_Sendrecv(curr_raw_row_send, width, MPI::BOOL, curr_neighbour_rank_send, ROW_EXCHANGE
-                   curr_raw_row_recv, width, MPI::BOOL, curr_neighbour_rank_recv, ROW_EXCHANGE,
-                   MPI_COMM_WORLD, &status);
+  bool* curr_raw_row_send = lower_raw_row_send;
+  bool* curr_raw_row_recv = upper_raw_row_recv;
 
-      curr_neighbour_rank_send = upper_worker_rank;
-      curr_neighbour_rank_recv = lower_worker_rank;
+  for (int i = 0; i < 2; ++i) {
+    SerializeRow(field_piece[curr_structed_raw_send], curr_raw_row_send);
 
-      curr_raw_row_send = upper_raw_row_send;
-      curr_raw_row_recv = lower_raw_row_recv;
+    MPI_Sendrecv(curr_raw_row_send, width, MPI::BOOL, curr_neighbour_rank_send, ROW_EXCHANGE,
+                 curr_raw_row_recv, width, MPI::BOOL, curr_neighbour_rank_recv, ROW_EXCHANGE,
+                 MPI_COMM_WORLD, &status);
 
-      curr_structed_raw_send = height - 1;
-    }
+    curr_neighbour_rank_send = upper_worker_rank;
+    curr_neighbour_rank_recv = lower_worker_rank;
 
-    CalculateNextStep(field_peace, lower_raw_row_recv, upper_raw_row_recv);
-//  }
+    curr_raw_row_send = upper_raw_row_send;
+    curr_raw_row_recv = lower_raw_row_recv;
 
-  SerializeField(field_peace, raw_field_peace);
-  MPI_Send(raw_field_peace, peace_size, MPI::BOOL, 0, GATHER_NEXT_STEP, MPI_COMM_WORLD);
+    curr_structed_raw_send = height - 1;
+  }
 
-  delete[] raw_field_peace;
-  delete[] lower_raw_row_recv;
-  delete[] lower_raw_row_send;
-  delete[] upper_raw_row_recv;
-  delete[] upper_raw_row_send;
+  CalculateNextStep(field_piece, lower_raw_row_recv, upper_raw_row_recv);
+
+  SerializeField(field_piece, raw_field_piece);
+  
+  MPI_Send(raw_field_piece, piece_size, MPI::BOOL, 0, GATHER_NEXT_STEP, MPI_COMM_WORLD);
+
+/*delete[] raw_field_piece;
+delete[] lower_raw_row_recv;
+delete[] lower_raw_row_send;
+delete[] upper_raw_row_recv;
+delete[] upper_raw_row_send;*/
 }
