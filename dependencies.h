@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <mpi.h>
 #include <pthread.h>
 #include <random>
 #include <ratio>
@@ -15,3 +16,9 @@
 
 using std::vector;
 using std::string;
+
+enum MessageType {
+  INITIAL_FIELD_INFO,
+  INITIAL_FIELD,
+  ROW_EXCHANGE
+};

@@ -23,85 +23,179 @@ CommandType ParseCommand(std::string input_string) {
   return result_command;
 }
 
-void LockIterationSemaphores() {
-  for (int i = 0; i < workers_number; ++i) {
-    sem_wait(&iteration_semaphores[i]);
-  }
-}
-
-void UnlockIterationSemaphores() {
-  for (int i = workers_number - 1; i >= 0; --i) {
-    sem_post(&iteration_semaphores[i]);
-  }
-}
-
-//use only with LockIterationSemaphores() and UnlockIterationSemaphores()
-int GetExtremeCurrentIteration(ExtremeType extremum) {
-  int current_extreme_iteration = worker_iterations[0];
-  int sign = (extremum == MAX_EXTREME) ? 1 : (-1);
-  for (int i = 1; i < workers_number; ++i) {
-    if (sign * worker_iterations[i] > sign * current_extreme_iteration) {
-      current_extreme_iteration = worker_iterations[i];
+bool* GetBuffer(Field* life_field, const int start_row, const int row_number) {
+  bool* buffer = new bool(row_number * life_field->width_);
+  int curr_index = 0;
+  for (int i = 0; i < row_number; ++i) {
+    for (int j = 0; j < life_field->width_; ++j, ++curr_index) {
+      buffer[curr_index] = life_field->field_[i + start_row][j];
+      std::cout << buffer[curr_index];
     }
   }
-  return current_extreme_iteration;
+  std::cout << "\n";
+  return buffer;
 }
 
-void InitializeWorkerStructures(vector<pthread_t>& workers) {
-  workers.resize(workers_number);
-  border_mutexes.resize(workers_number, PTHREAD_MUTEX_INITIALIZER);
-  border_cond_variables.resize(workers_number, PTHREAD_COND_INITIALIZER);
-  worker_states.resize(workers_number, 0);
-  worker_iterations.resize(workers_number, 0);
-  iteration_semaphores.resize(workers_number);
-  for (int i = 0; i < workers_number; ++i) {
-    sem_init(&iteration_semaphores[i], 0, 1);
-  }
+void MasterRoutine(const int comm_size) {
+
+  StateType current_state = BEFORE_START;
+
+  std::string command;
+  Field* life_field;
+
+  //while(!game_finished) {
+    std::cout << "$: ";
+    std::cin >> command;
+    CommandType current_command = ParseCommand(command);
+
+    //maybe workers have already finished
+    /*if (current_state == RUNNING) {
+
+      LockIterationSemaphores();
+
+      int current_min_iteration = GetExtremeCurrentIteration(MIN_EXTREME);
+      if (current_min_iteration == max_iteration) {
+        current_state = STARTED_NOT_RUNNING;
+      }
+
+      UnlockIterationSemaphores();
+    }*/
+
+    switch (current_command) {
+      case START: {
+        std::string field_info_string;
+
+        std::cin >> field_info_string;
+
+        if (current_state == STARTED_NOT_RUNNING) {
+          std::cout << "The system has already started\n";
+          break;
+        }
+
+        if (current_state == RUNNING) {
+          std::cout << "The system is already running, you can't start it.\n";
+          break;
+        }
+
+        //create field
+        try {
+          life_field = new Field(field_info_string);
+        } catch (std::invalid_argument &e) {
+          std::cout << e.what() << "\n";
+          break;
+        }
+
+        int initial_field_info[2];
+        initial_field_info[0] = life_field->height_ / (comm_size - 1);
+        initial_field_info[1] = life_field->width_;
+
+        int start_peace_index = 0;
+
+        life_field->show_field();
+
+        std::cout << "----------------------\n";
+
+        for (int i = 1; i < comm_size; ++i) {
+          if (i == comm_size - 1) {
+            initial_field_info[0] += life_field->height_ % (comm_size - 1);
+          }
+          MPI_Send(&initial_field_info, 2, MPI::INT, i, INITIAL_FIELD_INFO, MPI_COMM_WORLD);
+
+          bool* field_buffer = GetBuffer(life_field, start_peace_index, initial_field_info[0]);
+
+          MPI_Send(field_buffer, initial_field_info[0] * life_field->width_, MPI::BOOL,
+                   i, INITIAL_FIELD, MPI_COMM_WORLD);
+
+          start_peace_index += initial_field_info[0];
+        }
+
+        std::cout << "SENDED\n";
+
+        //initialize workers' structures
+        //InitializeWorkerStructures(workers);
+
+        current_state = STARTED_NOT_RUNNING;
+        break;
+      }
+
+      case STATUS:
+        if (current_state == BEFORE_START || current_state == RUNNING) {
+          std::cout << "The system can't show status in this state (" << current_state << ")\n";
+          break;
+        }
+        std::cout << "current_iteration = " << max_iteration << "\n";
+        life_field->show_field();
+        break;
+
+        /*case STOP:
+        {
+          if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
+            cout << "The system isn't running now.\n";
+            break;
+          }
+
+          LockIterationSemaphores();
+          max_iteration = GetExtremeCurrentIteration(MAX_EXTREME);
+          UnlockIterationSemaphores();
+
+          current_state = STARTED_NOT_RUNNING;
+          break;
+        }
+
+        case RUN:
+        {
+          string steps_number_string;
+          cin >> steps_number_string;
+
+          if (current_state == BEFORE_START) {
+            cout << "You can't run system before start.\n";
+            break;
+          }
+
+          if (current_state == RUNNING) {
+            cout << "the system is already running.\n";
+            break;
+          }
+
+          int steps_number;
+
+          try {
+            steps_number = std::stoi(steps_number_string);
+          } catch(std::invalid_argument& e) {
+            cout << "Enter correct NUMBER of steps, please.\n";
+            break;
+          } catch (std::out_of_range &e) {
+            cout << "Too big value of number of steps.\n";
+            break;
+          }
+
+          if (!is_workers_initialized) {
+
+            max_iteration += steps_number;
+            CreateWorkers(workers, life_field);
+            is_workers_initialized = true;
+
+          } else {
+            RerunWorkers(steps_number);
+          }
+
+          current_state = RUNNING;
+          break;
+        }
+
+        case QUIT:
+          StopWorkers();
+          ReleaseResources(workers);
+          break;
+
+        case WRONG_COMMAND:
+          cout << "You've entered wrong command. Try again, please.\n";
+          break;
+      }*/
+    }
+  //}
 }
 
-
-void CreateWorkers(vector<pthread_t>& workers, Field* life_field) {
-  for (int i = 0; i < workers_number; ++i) {
-    WorkerFuncArg* arg = new WorkerFuncArg();
-    arg->field = life_field;
-    arg->id = i;
-
-    pthread_create(&workers[i], NULL, WorkerFunction, (void*) arg);
-  }
-}
-
-
-void RerunWorkers(int steps_number) {
-  LockIterationSemaphores();
-
-  pthread_mutex_lock(&game_finished_mutex);
-
-  max_iteration += steps_number;
-  pthread_cond_broadcast(&game_finished_cond_variable);
-
-  pthread_mutex_unlock(&game_finished_mutex);
-
-  UnlockIterationSemaphores();
-}
-
-
-void StopWorkers() {
-  pthread_mutex_lock(&game_finished_mutex);
-
-  game_finished = true;
-  pthread_cond_broadcast(&game_finished_cond_variable);
-
-  pthread_mutex_unlock(&game_finished_mutex);
-}
-
-
-void ReleaseResources(vector<pthread_t>& workers) {
-  for (int i = 0; i < workers_number; ++i) {
-    pthread_join(workers[i], NULL);
-    pthread_mutex_destroy(&border_mutexes[i]);
-  }
-  pthread_mutex_destroy(&game_finished_mutex);
-}
 
 
 

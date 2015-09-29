@@ -31,4 +31,4 @@ void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound,
 
 bool NeedNextStep(int worker_id, Field* life_field);
 
-void* WorkerFunction(void* structed_args);
+void WorkerRoutine(const int worker_number, const int rank);

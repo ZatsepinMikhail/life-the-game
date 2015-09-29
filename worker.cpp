@@ -18,11 +18,6 @@ vector<unsigned char> worker_states;
 
 vector<unsigned int> worker_iterations;
 
-vector<sem_t> iteration_semaphores;
-
-pthread_mutex_t game_finished_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t game_finished_cond_variable;
-
 
 bool CalculateOneCell(Field* life_field, int row, int cell,
                       ExtraRowType need_extra_row, const vector<bool>& extra_row) {
@@ -94,7 +89,7 @@ void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound,
 }
 
 
-bool NeedNextStep(int worker_id) {
+/*bool NeedNextStep(int worker_id) {
 
   bool result = true;
 
@@ -114,7 +109,7 @@ bool NeedNextStep(int worker_id) {
       duration<double> time_span = duration_cast<duration<double>>(end_time - start_time);
 
       std::cout << "It took me " << time_span.count() << " seconds.";
-    }*/
+    }
 
     pthread_mutex_lock(&game_finished_mutex);
     while(worker_iterations[worker_id] >= max_iteration && !game_finished) {
@@ -127,56 +122,66 @@ bool NeedNextStep(int worker_id) {
   }
 
   return result;
+}*/
+
+
+void StructureFieldPeaceRaw(bool* raw_field, vector<vector<bool> >& structured_field,
+                            const int height, const int width) {
+  int curr_index = 0;
+  for (int i = 0; i < height; ++i) {
+    for (int j = 0; j < width; ++j, ++curr_index) {
+      structured_field[i][j] = raw_field[curr_index];
+    }
+  }
 }
 
+void SerializeRow(const vector<bool>& row, bool* raw_row, const int width) {
+  for (int i = 0; i < width; ++i) {
+    raw_row[i] = row[i];
+  }
+}
 
-void* WorkerFunction(void* structed_args) {
+void WorkerRoutine(const int comm_size, const int rank) {
 
-  WorkerFuncArg* arg = (WorkerFuncArg*) structed_args;
+  //get field peace
+  int initial_field_info[2];
 
-  int worker_id = arg->id;
-  Field* life_field = arg->field;
+  MPI_Status status;
+  MPI_Recv(initial_field_info, 2, MPI::INT, 0, INITIAL_FIELD_INFO, MPI_COMM_WORLD, &status);
 
-  int height = life_field->height_;
-  int width = life_field->width_;
+  int height = initial_field_info[0];
+  int width = initial_field_info[1];
 
-  int block_size = height / workers_number;
-  int lower_bound = worker_id * block_size;
-  int upper_bound = (worker_id == workers_number - 1) ? (height - 1) : (lower_bound + block_size - 1);
-
-  int lower_mutex_id = (worker_id == 0) ? (workers_number - 1) : (worker_id - 1);
-  int upper_mutex_id = (worker_id + 1) % workers_number;
-
-  int lower_neighbour_row_index = (lower_bound == 0) ? (height - 1) : (lower_bound - 1);
-  int upper_neighbour_row_index = (upper_bound + 1) % height;
+  int peace_size = width * height;
+  bool* raw_field_peace = new bool(peace_size);
+  MPI_Recv(raw_field_peace, peace_size, MPI::BOOL, 0, INITIAL_FIELD, MPI_COMM_WORLD, &status);
 
   vector<bool> empty_initializer(width, false);
+  vector<vector<bool> > field_peace(height, empty_initializer);
+  StructureFieldPeaceRaw(raw_field_peace, field_peace, height, width);
+
+  int lower_worker_rank = (rank == 1) ? (comm_size - 1) : (rank - 1);
+  int upper_worker_rank = (rank == comm_size - 1) ? 1 : (rank + 1);
+
   vector<vector<bool>> neighbour_rows(2, empty_initializer);
 
-  /*if (worker_id == 0) {
-    start_time = steady_clock::now();
-  }*/
+  bool* lower_raw_row = new bool(width);
+  bool* upper_raw_row = new bool(width);
 
-  while(NeedNextStep(worker_id)) {
 
-    int curr_mutex_id = lower_mutex_id;
-    int curr_neighbour_row_index = lower_neighbour_row_index;
+  while(NeedNextStep(rank)) {
+
+    int curr_neighbour_raw_index = 0;
+    int curr_neighbour_rank = lower_worker_rank;
+    bool* curr_raw_row = lower_raw_row;
 
     for (int i = 0; i < 2; ++i) {
-      pthread_mutex_lock(&border_mutexes[curr_mutex_id]);
-      while(worker_states[curr_mutex_id] != i) {
-        pthread_cond_wait(&border_cond_variables[curr_mutex_id], &border_mutexes[curr_mutex_id]);
-      }
+      SerializeRow(field_peace[curr_neighbour_raw_index], curr_raw_row, width);
+      MPI_Sendrecv()
 
-      neighbour_rows[i] = life_field->field_[curr_neighbour_row_index];
-
-      ++worker_states[curr_mutex_id];
-      pthread_cond_broadcast(&border_cond_variables[curr_mutex_id]);
-
-      pthread_mutex_unlock(&border_mutexes[curr_mutex_id]);
-
-      curr_mutex_id = upper_mutex_id;
-      curr_neighbour_row_index = upper_neighbour_row_index;
+      curr_neighbour_rank = upper_worker_rank;
+      curr_raw_row = upper_raw_row;
+      curr_neighbour_raw_index = height - 1;
     }
 
     pthread_mutex_lock(&border_mutexes[worker_id]);
@@ -196,5 +201,5 @@ void* WorkerFunction(void* structed_args) {
     pthread_mutex_unlock(&border_mutexes[worker_id]);
   }
 
-  return NULL;
+  */
 }
