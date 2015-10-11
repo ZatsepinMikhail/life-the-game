@@ -29,7 +29,8 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
 void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound, 
                        const vector<vector<bool>>& neighbour_rows);
 
-bool NeedNextStep(int worker_id, Field* life_field);
+bool NeedNextStep(const int comm_size, const int rank,
+                  bool* raw_field_piece, const vector<vector<bool> >& field_piece);
 
 void WorkerRoutine(const int worker_number, const int rank);
 

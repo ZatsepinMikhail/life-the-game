@@ -39,8 +39,11 @@ void MasterRoutine(const int comm_size) {
   std::string command;
   Field* life_field;
   bool* field_buffer;
+  int current_iteration = 0;
 
-  //while(!game_finished) {
+  int initial_field_info[2];
+
+  while(!game_finished) {
     std::cout << "$: ";
     std::cin >> command;
     CommandType current_command = ParseCommand(command);
@@ -69,10 +72,6 @@ void MasterRoutine(const int comm_size) {
           break;
         }
 
-        int initial_field_info[2];
-        initial_field_info[0] = life_field->height_ / (comm_size - 1);
-        initial_field_info[1] = life_field->width_;
-
         int start_piece_index = 0;
 
         life_field->show_field();
@@ -80,6 +79,9 @@ void MasterRoutine(const int comm_size) {
         std::cout << "----------------------\n";
 
         field_buffer = new bool[life_field->height_ * life_field->width_];
+
+        initial_field_info[0] = life_field->height_ / (comm_size - 1);
+        initial_field_info[1] = life_field->width_;
 
         for (int i = 1; i < comm_size; ++i) {
           if (i == comm_size - 1) {
@@ -95,105 +97,111 @@ void MasterRoutine(const int comm_size) {
           start_piece_index += initial_field_info[0];
         }
 
-        MPI_Status status;
-        initial_field_info[0] = life_field->height_ / (comm_size - 1);
-
-        bool* curr_start_point = field_buffer;
-        for (int i = 1; i < comm_size; ++i) {
-          if (i == comm_size - 1) {
-            initial_field_info[0] += life_field->height_ % (comm_size - 1);
-          }
-          MPI_Recv(curr_start_point, initial_field_info[0] * life_field->width_, MPI::BOOL,
-                   i, GATHER_NEXT_STEP, MPI_COMM_WORLD, &status);
-          curr_start_point += initial_field_info[0] * life_field->width_;
-        }
-
-        StructureFieldPieceRaw(field_buffer, life_field->field_);
-
-        life_field->show_field();
         current_state = STARTED_NOT_RUNNING;
         break;
       }
 
-      case STATUS:
+      case STATUS: {
         if (current_state == BEFORE_START || current_state == RUNNING) {
           std::cout << "The system can't show status in this state (" << current_state << ")\n";
           break;
         }
 
-        std::cout << "current_iteration = " << max_iteration << "\n";
+        MPI_Status status;
+        initial_field_info[0] = life_field->height_ / (comm_size - 1);
+
+        bool *curr_start_point = field_buffer;
+        int control_message = 0;
+        for (int i = comm_size - 1; i >= 1; --i) {
+          if (i == comm_size - 1) {
+            initial_field_info[0] += life_field->height_ % (comm_size - 1);
+          }
+
+          MPI_Send(&control_message, 1, MPI::INT,
+                   i, GATHER_NEXT_STEP, MPI_COMM_WORLD);
+          std::cout << "master sent to " << i << "\n";
+          MPI_Recv(curr_start_point, initial_field_info[0] * life_field->width_, MPI::BOOL,
+                   i, GATHER_NEXT_STEP, MPI_COMM_WORLD, &status);
+          std::cout << "master recieved from " << i << "\n";
+          curr_start_point += initial_field_info[0] * life_field->width_;
+        }
+
+        StructureFieldPieceRaw(field_buffer, life_field->field_);
+
+        std::cout << "at iteration " << current_iteration << "\n";
         life_field->show_field();
         break;
+      }
 
-        /*case STOP:
-        {
-          if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
-            cout << "The system isn't running now.\n";
-            break;
-          }
-
-          LockIterationSemaphores();
-          max_iteration = GetExtremeCurrentIteration(MAX_EXTREME);
-          UnlockIterationSemaphores();
-
-          current_state = STARTED_NOT_RUNNING;
+      case STOP: {
+        if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
+          std::cout << "The system isn't running now.\n";
           break;
         }
 
-        case RUN:
-        {
-          string steps_number_string;
-          cin >> steps_number_string;
+        int stop_message = 0;
+        MPI_Send(&stop_message, 1, MPI::INT, 1, STOP_WORKERS, MPI_COMM_WORLD);
+        std::cout << "master sent stop\n";
 
-          if (current_state == BEFORE_START) {
-            cout << "You can't run system before start.\n";
-            break;
-          }
+        MPI_Status status;
+        for (int i = 1; i < comm_size; ++i) {
+          MPI_Recv(&current_iteration, 1, MPI::INT, i, GATHER_CURR_ITERATION, MPI_COMM_WORLD, &status);
+          //std::cout << "GATHER " << i << " with " << current_iteration << "\n";
+        }
 
-          if (current_state == RUNNING) {
-            cout << "the system is already running.\n";
-            break;
-          }
+        std::cout << "Workers stopped at " << current_iteration << "\n";
 
-          int steps_number;
+        current_state = STARTED_NOT_RUNNING;
+        break;
+      }
 
-          try {
-            steps_number = std::stoi(steps_number_string);
-          } catch(std::invalid_argument& e) {
-            cout << "Enter correct NUMBER of steps, please.\n";
-            break;
-          } catch (std::out_of_range &e) {
-            cout << "Too big value of number of steps.\n";
-            break;
-          }
+      case RUN: {
+        string steps_number_string;
+        std::cin >> steps_number_string;
 
-          if (!is_workers_initialized) {
-
-            max_iteration += steps_number;
-            CreateWorkers(workers, life_field);
-            is_workers_initialized = true;
-
-          } else {
-            RerunWorkers(steps_number);
-          }
-
-          current_state = RUNNING;
+        if (current_state == BEFORE_START) {
+          std::cout << "You can't run system before start.\n";
           break;
         }
 
-        case QUIT:
-          StopWorkers();
-          ReleaseResources(workers);
+        if (current_state == RUNNING) {
+          std::cout << "the system is already running.\n";
           break;
+        }
 
-        case WRONG_COMMAND:
-          cout << "You've entered wrong command. Try again, please.\n";
+        int steps_number;
+
+        try {
+          steps_number = std::stoi(steps_number_string);
+        } catch(std::invalid_argument& e) {
+          std::cout << "Enter correct NUMBER of steps, please.\n";
           break;
-      }*/
-    }
-  //}
+        } catch (std::out_of_range &e) {
+          std::cout << "Too big value of number of steps.\n";
+          break;
+        }
+
+        for (int i = 1; i < comm_size; ++i) {
+          MPI_Send(&steps_number, 1, MPI::INT, i, RUN_WORKERS, MPI_COMM_WORLD);
+        }
+
+        current_state = RUNNING;
+        break;
+      }
+
+      case QUIT: {
+        int message = 0;
+        for (int i = 1; i < comm_size; ++i) {
+          MPI_Send(&message, 1, MPI::INT, i, QUIT_WORKERS, MPI_COMM_WORLD);
+        }
+        game_finished = true;
+        break;
+      }
+
+      case WRONG_COMMAND:
+        std::cout << "You've entered wrong command. Try again, please.\n";
+        break;
+      }
+
+  }
 }
-
-
-
-
