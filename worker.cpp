@@ -251,7 +251,7 @@ void WorkerRoutine(const int comm_size, const int rank) {
                    curr_raw_row_recv, width, MPI::BOOL, MPI_ANY_SOURCE, MPI_ANY_TAG,
                    MPI_COMM_WORLD, &status);
 
-      if (MPI_ANY_TAG == STOP_WORKERS) {
+      if (status.MPI_TAG == STOP_WORKERS) {
         std::cout << "YEAHHHHH!\n";
         max_iteration = ParseIteration(curr_raw_row_recv, width);
 
