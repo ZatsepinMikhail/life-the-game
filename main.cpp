@@ -5,13 +5,6 @@ using namespace std;
 
 int main(int argc, char** argv) {
 
-  bool is_workers_initialized = false;
-  vector<pthread_t> workers;
-  StateType current_state = BEFORE_START;
-
-  std::string command;
-  Field* life_field;
-
   int status = MPI_Init(&argc, &argv);
   if (status != 0) {
     std::cout << "MPI error\n";

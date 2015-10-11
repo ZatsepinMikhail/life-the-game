@@ -3,8 +3,6 @@
 unsigned int max_iteration = 0;
 unsigned int curr_iteration = 0;
 
-bool game_finished = false;
-
 int width = 0;
 int height = 0;
 
@@ -12,20 +10,6 @@ bool* message_buffer;
 
 MPI_Request stop_request;
 bool init_irecv = false;
-
-vector<pthread_mutex_t> border_mutexes;
-vector<pthread_cond_t> border_cond_variables;
-
-/*
-There are 3 states of each thread:
-0 - isn't red by other workers
-1 - only left border is red by other worker
-2 - two borders are red by other workers
-*/
-vector<unsigned char> worker_states;
-
-vector<unsigned int> worker_iterations;
-
 
 bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
                       ExtraRowType need_extra_row, bool* extra_row) {
@@ -91,7 +75,7 @@ void CalculateNextStep(vector<vector<bool> >& field_piece,
   }
 }
 
-int GetMaxIteration(bool* buffer, int size) {
+int ParseIteration(bool* buffer, int size) {
   int result = 0;
   int degree = 1;
   for (int i = 0; i < size; ++i) {
@@ -200,8 +184,8 @@ bool NeedNextStep(const int comm_size, const int rank,
       SerializeIteration(message_buffer, width, max_iteration);
 
       for (int i = 2; i < comm_size; ++i) {
-        //std::cout << "HERE\n";
         MPI_Send(message_buffer, width, MPI::BOOL, i, STOP_WORKERS, MPI_COMM_WORLD);
+        std::cout << "SENT to " << i << "\n";
       }
     }
   }
@@ -268,7 +252,8 @@ void WorkerRoutine(const int comm_size, const int rank) {
                    MPI_COMM_WORLD, &status);
 
       if (MPI_ANY_TAG == STOP_WORKERS) {
-        max_iteration = GetMaxIteration(curr_raw_row_recv, width);
+        std::cout << "YEAHHHHH!\n";
+        max_iteration = ParseIteration(curr_raw_row_recv, width);
 
         if (max_iteration < curr_iteration) {
           curr_iteration = max_iteration;

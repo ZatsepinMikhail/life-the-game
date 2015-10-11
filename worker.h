@@ -22,12 +22,12 @@ enum class ExtraRowType {
 
 //steady_clock::time_point start_time;
 
-bool CalculateOneCell(Field* life_field, int row, int cell, 
-                      ExtraRowType need_extra_row, const vector<bool>& extra_row);
+bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
+                      ExtraRowType need_extra_row, bool* extra_row);
 
 
-void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound, 
-                       const vector<vector<bool>>& neighbour_rows);
+void CalculateNextStep(vector<vector<bool> >& field_piece,
+                       bool* lower_raw_row, bool* upper_raw_row);
 
 bool NeedNextStep(const int comm_size, const int rank,
                   bool* raw_field_piece, const vector<vector<bool> >& field_piece);

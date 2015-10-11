@@ -34,6 +34,8 @@ void GetBuffer(Field* life_field, const int start_row, const int row_number, boo
 
 void MasterRoutine(const int comm_size) {
 
+  bool is_game_finished = false;
+
   StateType current_state = BEFORE_START;
 
   std::string command;
@@ -43,7 +45,7 @@ void MasterRoutine(const int comm_size) {
 
   int initial_field_info[2];
 
-  while(!game_finished) {
+  while(!is_game_finished) {
     std::cout << "$: ";
     std::cin >> command;
     CommandType current_command = ParseCommand(command);
@@ -119,10 +121,8 @@ void MasterRoutine(const int comm_size) {
 
           MPI_Send(&control_message, 1, MPI::INT,
                    i, GATHER_NEXT_STEP, MPI_COMM_WORLD);
-          std::cout << "master sent to " << i << "\n";
           MPI_Recv(curr_start_point, initial_field_info[0] * life_field->width_, MPI::BOOL,
                    i, GATHER_NEXT_STEP, MPI_COMM_WORLD, &status);
-          std::cout << "master recieved from " << i << "\n";
           curr_start_point += initial_field_info[0] * life_field->width_;
         }
 
@@ -141,16 +141,13 @@ void MasterRoutine(const int comm_size) {
 
         int stop_message = 0;
         MPI_Send(&stop_message, 1, MPI::INT, 1, STOP_WORKERS, MPI_COMM_WORLD);
-        std::cout << "master sent stop\n";
 
         MPI_Status status;
         for (int i = 1; i < comm_size; ++i) {
           MPI_Recv(&current_iteration, 1, MPI::INT, i, GATHER_CURR_ITERATION, MPI_COMM_WORLD, &status);
-          //std::cout << "GATHER " << i << " with " << current_iteration << "\n";
         }
 
         std::cout << "Workers stopped at " << current_iteration << "\n";
-
         current_state = STARTED_NOT_RUNNING;
         break;
       }
@@ -194,7 +191,7 @@ void MasterRoutine(const int comm_size) {
         for (int i = 1; i < comm_size; ++i) {
           MPI_Send(&message, 1, MPI::INT, i, QUIT_WORKERS, MPI_COMM_WORLD);
         }
-        game_finished = true;
+        is_game_finished = true;
         break;
       }
 
