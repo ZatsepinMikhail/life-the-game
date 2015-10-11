@@ -125,7 +125,7 @@ bool NeedNextStep(const int comm_size, const int rank,
     flag = false;
     if (!sent_iteration && curr_iteration != 0) {
       MPI_Send(&max_iteration, 1, MPI::INT, 0, GATHER_CURR_ITERATION, MPI_COMM_WORLD);
-      //std::cout << rank << " sent to master its iteration\n";
+      std::cout << rank << " sent to master its iteration\n";
       sent_iteration = true;
     }
     //std::cout << "WAIT FOR A MESSAGE!\n";
@@ -137,7 +137,7 @@ bool NeedNextStep(const int comm_size, const int rank,
       }
       init_irecv = false;
     } else {
-      //std::cout << "USE RECV\n";
+      std::cout << "USE RECV\n";
       MPI_Recv(&control_message, 1, MPI::INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
     }
     //std::cout << "GOT MESSAGE!\n";
@@ -180,7 +180,8 @@ bool NeedNextStep(const int comm_size, const int rank,
       }
 
       //std::cout << "HERE\n";
-      max_iteration = curr_iteration + 1;
+      max_iteration = curr_iteration + 2;
+      std::cout << "new max iteration = " << max_iteration << "\n";
       SerializeIteration(message_buffer, width, max_iteration);
 
       for (int i = 2; i < comm_size; ++i) {
@@ -252,7 +253,7 @@ void WorkerRoutine(const int comm_size, const int rank) {
                    MPI_COMM_WORLD, &status);
 
       if (status.MPI_TAG == STOP_WORKERS) {
-        std::cout << "YEAHHHHH!\n";
+        std::cout << "YEAHHHHH! (" << curr_iteration << ")\n";
         max_iteration = ParseIteration(curr_raw_row_recv, width);
 
         if (max_iteration < curr_iteration) {
