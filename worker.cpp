@@ -10,6 +10,7 @@ bool* message_buffer;
 
 MPI_Request stop_request;
 bool init_irecv = false;
+bool need_irecv = true;
 
 bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
                       ExtraRowType need_extra_row, bool* extra_row) {
@@ -130,14 +131,14 @@ bool NeedNextStep(const int comm_size, const int rank,
     }
     //std::cout << "WAIT FOR A MESSAGE!\n";
 
-    if (init_irecv) {
+    if (init_irecv && need_irecv) {
       //std::cout << "WAIT FOR A MESSAGE!\n";
       while(!flag) {
         MPI_Test(&stop_request, &flag, &status);
       }
       init_irecv = false;
     } else {
-      std::cout << "USE RECV\n";
+      //std::cout << rank << " USE RECV\n";
       MPI_Recv(&control_message, 1, MPI::INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
     }
     //std::cout << "GOT MESSAGE!\n";
@@ -161,7 +162,7 @@ bool NeedNextStep(const int comm_size, const int rank,
   }
 
   //std::cout << "EXIT FROM WHILE\n";
-  if (rank == 1) {
+  if (rank == 1 && need_irecv) {
     if (!init_irecv) {
       MPI_Irecv(&control_message, 1, MPI::INT, 0, STOP_WORKERS, MPI_COMM_WORLD, &stop_request);
       init_irecv = true;
@@ -171,7 +172,7 @@ bool NeedNextStep(const int comm_size, const int rank,
     MPI_Test(&stop_request, &flag, &status);
     if (flag) {
 
-      std::cout << "GOT MESSAGE WHILE WORKING!\n";
+      //std::cout << "GOT MESSAGE WHILE WORKING!\n";
       init_irecv = false;
 
       if (max_iteration - curr_iteration == 1) {
@@ -180,14 +181,15 @@ bool NeedNextStep(const int comm_size, const int rank,
       }
 
       //std::cout << "HERE\n";
-      max_iteration = curr_iteration + 2;
+      max_iteration = curr_iteration + 3;
       std::cout << "new max iteration = " << max_iteration << "\n";
       SerializeIteration(message_buffer, width, max_iteration);
 
       for (int i = 2; i < comm_size; ++i) {
         MPI_Send(message_buffer, width, MPI::BOOL, i, STOP_WORKERS, MPI_COMM_WORLD);
-        std::cout << "SENT to " << i << "\n";
       }
+
+      need_irecv = false;
     }
   }
 
@@ -253,16 +255,18 @@ void WorkerRoutine(const int comm_size, const int rank) {
                    MPI_COMM_WORLD, &status);
 
       if (status.MPI_TAG == STOP_WORKERS) {
-        std::cout << "YEAHHHHH! (" << curr_iteration << ")\n";
         max_iteration = ParseIteration(curr_raw_row_recv, width);
-
+        std::cout << rank << ":YEAHHHHH! (" << curr_iteration << "-" << max_iteration << ")\n";
         if (max_iteration < curr_iteration) {
           curr_iteration = max_iteration;
           continue;
         }
 
+
+        std::cout << "before receieving good message\n";
         MPI_Recv(curr_raw_row_recv, width, MPI::BOOL, curr_neighbour_rank_recv, ROW_EXCHANGE,
                  MPI_COMM_WORLD, &status);
+        std::cout << "receive good message\n";
       }
 
 
