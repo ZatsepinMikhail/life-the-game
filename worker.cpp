@@ -10,6 +10,9 @@ int height = 0;
 
 bool* message_buffer;
 
+MPI_Request stop_request;
+bool init_irecv = false;
+
 vector<pthread_mutex_t> border_mutexes;
 vector<pthread_cond_t> border_cond_variables;
 
@@ -129,56 +132,58 @@ bool NeedNextStep(const int comm_size, const int rank,
                   bool* raw_field_piece, const vector<vector<bool> >& field_piece) {
 
   int control_message;
-  MPI_Status status;
-  MPI_Request stop_request;
   int flag = false;
 
+  MPI_Status status;
   bool sent_iteration = false;
-  bool init_irecv = false;
 
   while (curr_iteration == max_iteration) {
     flag = false;
     if (!sent_iteration && curr_iteration != 0) {
       MPI_Send(&max_iteration, 1, MPI::INT, 0, GATHER_CURR_ITERATION, MPI_COMM_WORLD);
-      std::cout << rank << " sent to master its iteration\n";
+      //std::cout << rank << " sent to master its iteration\n";
       sent_iteration = true;
     }
-    std::cout << "WAIT FOR A MESSAGE!\n";
+    //std::cout << "WAIT FOR A MESSAGE!\n";
 
     if (init_irecv) {
-      MPI_Test(&stop_request, &flag, &status);
-      if (flag) {
-        init_irecv = false;
+      //std::cout << "WAIT FOR A MESSAGE!\n";
+      while(!flag) {
+        MPI_Test(&stop_request, &flag, &status);
       }
+      init_irecv = false;
     } else {
+      //std::cout << "USE RECV\n";
       MPI_Recv(&control_message, 1, MPI::INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
     }
-    std::cout << "GOT MESSAGE!\n";
+    //std::cout << "GOT MESSAGE!\n";
     switch (status.MPI_TAG) {
       case RUN_WORKERS:
         max_iteration += control_message;
-        std::cout << "\"RUN " << control_message << "\"\n";
+        //std::cout << "\"RUN " << control_message << "\"\n";
         return true;
       case QUIT_WORKERS:
         return false;
       case STOP_WORKERS:
-        std::cout << "1 got stop message\n";
+        //std::cout << rank << " got stop message\n";
         break;
       case GATHER_NEXT_STEP:
-        std::cout << "worker " << rank << " received from master\n";
+        //std::cout << "worker " << rank << " received from master\n";
         SerializeField(field_piece, raw_field_piece);
         MPI_Send(raw_field_piece, height * width, MPI::BOOL, 0, GATHER_NEXT_STEP, MPI_COMM_WORLD);
-        std::cout << "worker " << rank << " sent to master\n";
+        //std::cout << "worker " << rank << " sent to master\n";
         break;
     }
   }
 
+  //std::cout << "EXIT FROM WHILE\n";
   if (rank == 1) {
     if (!init_irecv) {
       MPI_Irecv(&control_message, 1, MPI::INT, 0, STOP_WORKERS, MPI_COMM_WORLD, &stop_request);
       init_irecv = true;
     }
 
+    //std::cout << "BEFORE TEST\n";
     MPI_Test(&stop_request, &flag, &status);
     if (flag) {
 
@@ -190,24 +195,13 @@ bool NeedNextStep(const int comm_size, const int rank,
         return true;
       }
 
+      //std::cout << "HERE\n";
       max_iteration = curr_iteration + 1;
       SerializeIteration(message_buffer, width, max_iteration);
 
       for (int i = 2; i < comm_size; ++i) {
+        //std::cout << "HERE\n";
         MPI_Send(message_buffer, width, MPI::BOOL, i, STOP_WORKERS, MPI_COMM_WORLD);
-      }
-    }
-  } else {
-    if (!init_irecv) {
-      MPI_Irecv(&control_message, 1, MPI::INT, 1, STOP_WORKERS, MPI_COMM_WORLD, &stop_request);
-      init_irecv = true;
-    }
-    MPI_Test(&stop_request, &flag, &status);
-    if (flag) {
-      init_irecv = false;
-      max_iteration = GetMaxIteration(message_buffer, width);
-      if (max_iteration == curr_iteration) {
-        NeedNextStep(comm_size, rank, raw_field_piece, field_piece);
       }
     }
   }
