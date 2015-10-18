@@ -200,7 +200,7 @@ int main() {
 
 #pragma omp master
           {
-            max_iteration = steps_number;
+            max_iteration += steps_number;
             current_state = RUNNING;
           }
 
