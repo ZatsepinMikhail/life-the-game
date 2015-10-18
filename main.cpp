@@ -39,117 +39,169 @@ int main() {
       switch (current_command) {
         case START: {
 
+          std::string field_info_string;
+          std::string workers_number_string;
+
 #pragma omp master
           {
-            std::string field_info_string;
-            std::string workers_number_string;
             cin >> field_info_string;
             cin >> workers_number_string;
+          }
 
-            if (current_state == STARTED_NOT_RUNNING) {
+          if (current_state == STARTED_NOT_RUNNING) {
+#pragma omp master
+            {
               cout << "The system has already started\n";
-              break;
             }
+            break;
+          }
 
-            if (current_state == RUNNING) {
+          if (current_state == RUNNING) {
+#pragma omp master
+            {
               cout << "The system is already running, you can't start it.\n";
-              break;
             }
+            break;
+          }
 
-            //create field
-            try {
+          //create field
+          try {
+#pragma omp master
+            {
               life_field = new Field(field_info_string);
-            } catch (std::invalid_argument &e) {
+            }
+          } catch (std::invalid_argument &e) {
+#pragma omp master
+            {
               cout << e.what() << "\n";
+            }
+            break;
+          }
+
+          //get threads number
+          try {
+#pragma omp master
+            {
+              workers_number = std::atoi(workers_number_string.c_str());
+            }
+
+            if (workers_number <= 0) {
+#pragma omp master
+              {
+                cout << "The number of workers can't be negative or zero. Enter correct value, please.\n";
+              }
               break;
             }
 
-            //get threads number
-            try {
-              workers_number = std::atoi(workers_number_string.c_str());
-              if (workers_number <= 0) {
-                cout << "The number of workers can't be negative or zero. Enter correct value, please.\n";
-                break;
-              }
-
-              if (workers_number * 4 > life_field->height_) {
+            if (workers_number * 4 > life_field->height_) {
+#pragma omp master
+              {
                 cout <<
                 "For correctness and profit the height of field should be at least 4 times bigger than the number of workers.\n";
-                break;
               }
-
-              worker_iterations.resize(workers_number, 0);
-              current_state = STARTED_NOT_RUNNING;
-
-            } catch (std::invalid_argument &e) {
-              cout << "Enter correct NUMBER of thread workers, please.\n";
               break;
             }
+
+          } catch (std::invalid_argument &e) {
+#pragma omp master
+            {
+              cout << "Enter correct NUMBER of thread workers, please.\n";
+            }
+            break;
+          }
+
+#pragma omp master
+          {
+            worker_iterations.resize(workers_number, 0);
+            current_state = STARTED_NOT_RUNNING;
           }
 
           RunWorkers(life_field);
           break;
         }
 
-        case STATUS:
+        case STATUS: {
+          if (current_state == BEFORE_START || current_state == RUNNING) {
 #pragma omp master
-          {
-            if (current_state == BEFORE_START || current_state == RUNNING) {
+            {
               cout << "The system can't show status in this state (" << current_state << ")\n";
-              break;
             }
-            cout << "current_iteration = " << max_iteration << "\n";
-            life_field->show_field();
             break;
           }
 
-
-        case STOP:
 #pragma omp master
-        {
+          {
+            cout << "current_iteration = " << max_iteration << "\n";
+            life_field->show_field();
+          }
+          break;
+        }
+
+
+        case STOP: {
           if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
-            cout << "The system isn't running now.\n";
+#pragma omp master
+            {
+              cout << "The system isn't running now.\n";
+            }
             break;
           }
 
 #pragma omp critical(max_iteration)
           {
             max_iteration = GetExtremeCurrentIteration(MAX_EXTREME);
+            current_state = STARTED_NOT_RUNNING;
           }
-
-          current_state = STARTED_NOT_RUNNING;
 
           break;
         }
 
         case RUN: {
+          string steps_number_string;
 #pragma omp master
           {
-            string steps_number_string;
             cin >> steps_number_string;
+          }
 
-            if (current_state == BEFORE_START) {
+          if (current_state == BEFORE_START) {
+#pragma omp master
+            {
               cout << "You can't run system before start.\n";
-              break;
             }
+            break;
+          }
 
-            if (current_state == RUNNING) {
+          if (current_state == RUNNING) {
+#pragma omp master
+            {
               cout << "the system is already running.\n";
-              break;
             }
+            break;
+          }
 
-            int steps_number;
+          int steps_number;
 
-            try {
+          try {
+#pragma omp master
+            {
               steps_number = std::atoi(steps_number_string.c_str());
-            } catch (std::invalid_argument &e) {
-              cout << "Enter correct NUMBER of steps, please.\n";
-              break;
-            } catch (std::out_of_range &e) {
-              cout << "Too big value of number of steps.\n";
-              break;
             }
+          } catch (std::invalid_argument &e) {
+#pragma omp master
+            {
+              cout << "Enter correct NUMBER of steps, please.\n";
+            }
+            break;
+          } catch (std::out_of_range &e) {
+#pragma omp master
+            {
+              cout << "Too big value of number of steps.\n";
+            }
+            break;
+          }
 
+#pragma omp master
+          {
             max_iteration = steps_number;
             current_state = RUNNING;
           }
@@ -158,18 +210,20 @@ int main() {
           break;
         }
 
-        case QUIT:
+        case QUIT: {
 #pragma omp master
-        {
-          StopWorkers();
-          game_finished = true;
+          {
+            StopWorkers();
+            game_finished = true;
+          }
           break;
         }
 
-        case WRONG_COMMAND:
+        case WRONG_COMMAND: {
 #pragma omp master
-        {
-          cout << "You've entered wrong command. Try again, please.\n";
+          {
+            cout << "You've entered wrong command. Try again, please.\n";
+          }
           break;
         }
       }
