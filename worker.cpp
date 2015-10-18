@@ -135,7 +135,6 @@ void* WorkerFunction(void* structed_args) {
   int lower_bound = worker_id * block_size;
   int upper_bound = (worker_id == workers_number - 1) ? (height - 1) : (lower_bound + block_size - 1);
 
-
   int lower_neighbour_row_index = (lower_bound == 0) ? (height - 1) : (lower_bound - 1);
   int upper_neighbour_row_index = (upper_bound + 1) % height;
 

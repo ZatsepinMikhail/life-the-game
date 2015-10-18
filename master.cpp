@@ -1,5 +1,12 @@
 #include "master.h"
 
+std::string state_type_strings[3] = {"BEFORE_START", "STARTED_NOT_RUNNING", "RUNNING"};
+
+std::ostream& operator << (std::ostream& out, const StateType state) {
+  out << state_type_strings[state];
+  return out;
+}
+
 CommandType ParseCommand(std::string input_string) {
   int space_pos = input_string.find(' ');
   std::string parsed_command = input_string.substr(0, space_pos);
@@ -36,13 +43,18 @@ int GetExtremeCurrentIteration(ExtremeType extremum) {
 
 void RunWorkers(Field* life_field) {
   int id = omp_get_thread_num();
+  //std::cout << omp_get_nested() << "\n";
+  omp_set_nested(1);
+  //std::cout << omp_get_nested() << "\n";
   if (id == 1) {
+    //std::cout << "HERE\n";
 #pragma omp parallel num_threads(workers_number)
     {
+      //std::cout << "HERE\n";
       WorkerFuncArg *arg = new WorkerFuncArg();
       arg->field = life_field;
       arg->id = omp_get_thread_num();
-
+      //std::cout << arg->id << "\n";
       WorkerFunction(arg);
     }
   }

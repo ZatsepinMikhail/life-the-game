@@ -115,8 +115,6 @@ int main() {
             worker_iterations.resize(workers_number, 0);
             current_state = STARTED_NOT_RUNNING;
           }
-
-          RunWorkers(life_field);
           break;
         }
 
