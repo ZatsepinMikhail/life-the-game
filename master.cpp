@@ -23,19 +23,6 @@ CommandType ParseCommand(std::string input_string) {
   return result_command;
 }
 
-void LockIterationSemaphores() {
-  for (int i = 0; i < workers_number; ++i) {
-    sem_wait(&iteration_semaphores[i]);
-  }
-}
-
-void UnlockIterationSemaphores() {
-  for (int i = workers_number - 1; i >= 0; --i) {
-    sem_post(&iteration_semaphores[i]);
-  }
-}
-
-//use only with LockIterationSemaphores() and UnlockIterationSemaphores()
 int GetExtremeCurrentIteration(ExtremeType extremum) {
   int current_extreme_iteration = worker_iterations[0];
   int sign = (extremum == MAX_EXTREME) ? 1 : (-1);
@@ -47,54 +34,25 @@ int GetExtremeCurrentIteration(ExtremeType extremum) {
   return current_extreme_iteration;
 }
 
-void InitializeWorkerStructures() {
+void RunWorkers(Field* life_field) {
   int id = omp_get_thread_num();
   if (id == 1) {
-#pragma omp parallel threads_num(workers_number)
+#pragma omp parallel num_threads(workers_number)
+    {
+      WorkerFuncArg *arg = new WorkerFuncArg();
+      arg->field = life_field;
+      arg->id = omp_get_thread_num();
 
+      WorkerFunction(arg);
+    }
   }
 }
-
-
-void CreateWorkers(vector<pthread_t>& workers, Field* life_field) {
-  for (int i = 0; i < workers_number; ++i) {
-    WorkerFuncArg* arg = new WorkerFuncArg();
-    arg->field = life_field;
-    arg->id = i;
-
-    pthread_create(&workers[i], NULL, WorkerFunction, (void*) arg);
-  }
-}
-
-
-void RerunWorkers(int steps_number) {
-  pthread_mutex_lock(&game_finished_mutex);
-
-  max_iteration += steps_number;
-  pthread_cond_broadcast(&game_finished_cond_variable);
-
-  pthread_mutex_unlock(&game_finished_mutex);
-
-  UnlockIterationSemaphores();
-}
-
 
 void StopWorkers() {
-  pthread_mutex_lock(&game_finished_mutex);
-
-  game_finished = true;
-  pthread_cond_broadcast(&game_finished_cond_variable);
-
-  pthread_mutex_unlock(&game_finished_mutex);
-}
-
-
-void ReleaseResources(vector<pthread_t>& workers) {
-  for (int i = 0; i < workers_number; ++i) {
-    pthread_join(workers[i], NULL);
-    pthread_mutex_destroy(&border_mutexes[i]);
+#pragma omp critical(max_iteration)
+  {
+    max_iteration = -1;
   }
-  pthread_mutex_destroy(&game_finished_mutex);
 }
 
 

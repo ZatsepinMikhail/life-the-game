@@ -98,13 +98,14 @@ bool NeedNextStep(int worker_id) {
 
   bool result = true;
 
-  sem_wait(&iteration_semaphores[worker_id]);
-  if (worker_iterations[worker_id] >= max_iteration) {
-    result = false;
-  } else {
-    ++worker_iterations[worker_id];
+#pragma omp critical(max_iteration)
+  {
+    if (worker_iterations[worker_id] >= max_iteration) {
+      result = false;
+    } else {
+      ++worker_iterations[worker_id];
+    }
   }
-  sem_post(&iteration_semaphores[worker_id]);
 
   if (!result) {
 
@@ -114,15 +115,6 @@ bool NeedNextStep(int worker_id) {
 
       std::cout << "It took me " << difftime(end_time, start_time) << " seconds\n";
     }
-
-    pthread_mutex_lock(&game_finished_mutex);
-    while(worker_iterations[worker_id] >= max_iteration && !game_finished) {
-      pthread_cond_wait(&game_finished_cond_variable, &game_finished_mutex);
-    }
-    result = !game_finished;
-    ++worker_iterations[worker_id];
-    pthread_mutex_unlock(&game_finished_mutex);
-
   }
 
   return result;

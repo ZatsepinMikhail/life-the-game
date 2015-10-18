@@ -25,28 +25,14 @@ enum ExtremeType {
 extern unsigned int max_iteration;
 extern unsigned short workers_number;
 
-extern bool game_finished;
-
 extern vector<unsigned int> worker_iterations;
-extern vector<sem_t> iteration_semaphores;
-extern pthread_mutex_t game_finished_mutex;
-extern pthread_cond_t game_finished_cond_variable;
 
 CommandType ParseCommand(std::string input_string);
 
 int GetExtremeCurrentIteration(ExtremeType extremum);
 
-void LockIterationSemaphores();
-
-void UnlockIterationSemaphores();
-
-void InitializeWorkerStructures(vector<pthread_t>& workers);
-
-void CreateWorkers(vector<pthread_t>& workers, Field* life_field);
-
-void RerunWorkers(int steps_number);
+void RunWorkers(Field* life_field);
 
 void StopWorkers();
 
-void ReleaseResources(vector<pthread_t>& workers);
 
