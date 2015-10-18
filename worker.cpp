@@ -8,9 +8,6 @@ unsigned short workers_number = 0;
 
 bool game_finished = false;
 
-vector<pthread_mutex_t> border_mutexes;
-vector<pthread_cond_t> border_cond_variables;
-
 /*
 There are 3 states of each thread:
 0 - isn't red by other workers
@@ -146,8 +143,6 @@ void* WorkerFunction(void* structed_args) {
   int lower_bound = worker_id * block_size;
   int upper_bound = (worker_id == workers_number - 1) ? (height - 1) : (lower_bound + block_size - 1);
 
-  int lower_mutex_id = (worker_id == 0) ? (workers_number - 1) : (worker_id - 1);
-  int upper_mutex_id = (worker_id + 1) % workers_number;
 
   int lower_neighbour_row_index = (lower_bound == 0) ? (height - 1) : (lower_bound - 1);
   int upper_neighbour_row_index = (upper_bound + 1) % height;
@@ -161,41 +156,17 @@ void* WorkerFunction(void* structed_args) {
 
   while(NeedNextStep(worker_id)) {
 
-    int curr_mutex_id = lower_mutex_id;
     int curr_neighbour_row_index = lower_neighbour_row_index;
 
     for (int i = 0; i < 2; ++i) {
-      pthread_mutex_lock(&border_mutexes[curr_mutex_id]);
-      while(worker_states[curr_mutex_id] != i) {
-        pthread_cond_wait(&border_cond_variables[curr_mutex_id], &border_mutexes[curr_mutex_id]);
-      }
 
       neighbour_rows[i] = life_field->field_[curr_neighbour_row_index];
-
-      ++worker_states[curr_mutex_id];
-      pthread_cond_broadcast(&border_cond_variables[curr_mutex_id]);
-
-      pthread_mutex_unlock(&border_mutexes[curr_mutex_id]);
-
-      curr_mutex_id = upper_mutex_id;
+#pragma omp barrier
       curr_neighbour_row_index = upper_neighbour_row_index;
     }
 
-    pthread_mutex_lock(&border_mutexes[worker_id]);
-    while(worker_states[worker_id] != 2) {
-      pthread_cond_wait(&border_cond_variables[worker_id], &border_mutexes[worker_id]);
-    }
-
-    pthread_mutex_unlock(&border_mutexes[worker_id]);
-
     CalculateNextStep(life_field, lower_bound, upper_bound, neighbour_rows);
-
-
-    pthread_mutex_lock(&border_mutexes[worker_id]);
-
-    worker_states[worker_id] = 0;
-    pthread_cond_broadcast(&border_cond_variables[worker_id]);
-    pthread_mutex_unlock(&border_mutexes[worker_id]);
+#pragma omp barrier
   }
 
   return NULL;

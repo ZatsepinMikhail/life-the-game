@@ -6,153 +6,162 @@ using namespace std;
 int main() {
 
   bool is_workers_initialized = false;
-  vector<pthread_t> workers;
   StateType current_state = BEFORE_START;
 
   std::string command;
   Field* life_field;
+  CommandType current_command;
 
-  while(!game_finished) {
-    cout << "$: ";
-    cin >> command;
-    CommandType current_command = ParseCommand(command);
+#pragma parallel num_threads(2)
+  {
+    while (!game_finished) {
+#pragma master
+      {
+        cout << "$: ";
+        cin >> command;
+        current_command = ParseCommand(command);
+      }
 
     //maybe workers have already finished
-    if (current_state == RUNNING) {
+#pragma master
+      {
+        if (current_state == RUNNING) {
+          LockIterationSemaphores();
 
-      LockIterationSemaphores();
-
-      int current_min_iteration = GetExtremeCurrentIteration(MIN_EXTREME);
-      if (current_min_iteration == max_iteration) {
-        current_state = STARTED_NOT_RUNNING;
+          int current_min_iteration = GetExtremeCurrentIteration(MIN_EXTREME);
+          if (current_min_iteration == max_iteration) {
+            current_state = STARTED_NOT_RUNNING;
+          }
+          UnlockIterationSemaphores();
+        }
       }
 
-      UnlockIterationSemaphores();
-    }
+      switch (current_command) {
+        case START: {
+#pragma master
+          {
+            std::string field_info_string;
+            std::string workers_number_string;
 
-    switch(current_command) {
-      case START: 
-      {
-        std::string field_info_string;
-        std::string workers_number_string;
-        
-        cin >> field_info_string;
-        cin >> workers_number_string;
+            cin >> field_info_string;
+            cin >> workers_number_string;
 
-        if (current_state == STARTED_NOT_RUNNING) {
-          cout << "The system has already started\n";
+            if (current_state == STARTED_NOT_RUNNING) {
+              cout << "The system has already started\n";
+              break;
+            }
+
+            if (current_state == RUNNING) {
+              cout << "The system is already running, you can't start it.\n";
+              break;
+            }
+
+            //create field
+            try {
+              life_field = new Field(field_info_string);
+            } catch (std::invalid_argument &e) {
+              cout << e.what() << "\n";
+              break;
+            }
+
+            //get threads number
+            try {
+              workers_number = std::atoi(workers_number_string.c_str());
+              if (workers_number <= 0) {
+                cout << "The number of workers can't be negative or zero. Enter correct value, please.\n";
+                break;
+              }
+              if (workers_number * 4 > life_field->height_) {
+                cout <<
+                "For correctness and profit the height of field should be at least 4 times bigger than the number of workers.\n";
+                break;
+              }
+            } catch (std::invalid_argument &e) {
+              cout << "Enter correct NUMBER of thread workers, please.\n";
+              break;
+            }
+
+            worker_iterations.resize(workers_number, 0);
+            current_state = STARTED_NOT_RUNNING;
+          }
+
+          InitializeWorkerStructures();
+
           break;
         }
 
-        if (current_state == RUNNING) {
-          cout << "The system is already running, you can't start it.\n";
-          break;
-        }
-
-        //create field
-        try {
-          life_field = new Field(field_info_string);
-        } catch (std::invalid_argument& e) {
-          cout << e.what() << "\n";
-          break;
-        }
-
-        //get threads number
-        try {
-          workers_number = std::atoi(workers_number_string.c_str());
-          if (workers_number <= 0) {
-            cout << "The number of workers can't be negative or zero. Enter correct value, please.\n";
+        case STATUS:
+          if (current_state == BEFORE_START || current_state == RUNNING) {
+            cout << "The system can't show status in this state (" << current_state << ")\n";
             break;
           }
-          if (workers_number * 4 > life_field->height_) {
-            cout << "For correctness and profit the height of field should be at least 4 times bigger than the number of workers.\n";  
+          cout << "current_iteration = " << max_iteration << "\n";
+          life_field->show_field();
+          break;
+
+        case STOP: {
+          if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
+            cout << "The system isn't running now.\n";
             break;
           }
-        } catch (std::invalid_argument& e) {
-          cout << "Enter correct NUMBER of thread workers, please.\n";
+
+          LockIterationSemaphores();
+          max_iteration = GetExtremeCurrentIteration(MAX_EXTREME);
+          UnlockIterationSemaphores();
+
+          current_state = STARTED_NOT_RUNNING;
           break;
         }
-        
-        //initialize workers' structures
-        InitializeWorkerStructures(workers);
 
-        current_state = STARTED_NOT_RUNNING;
-        break;
+        case RUN: {
+          string steps_number_string;
+          cin >> steps_number_string;
+
+          if (current_state == BEFORE_START) {
+            cout << "You can't run system before start.\n";
+            break;
+          }
+
+          if (current_state == RUNNING) {
+            cout << "the system is already running.\n";
+            break;
+          }
+
+          int steps_number;
+
+          try {
+            steps_number = std::atoi(steps_number_string.c_str());
+          } catch (std::invalid_argument &e) {
+            cout << "Enter correct NUMBER of steps, please.\n";
+            break;
+          } catch (std::out_of_range &e) {
+            cout << "Too big value of number of steps.\n";
+            break;
+          }
+
+          if (!is_workers_initialized) {
+
+            max_iteration += steps_number;
+            CreateWorkers(workers, life_field);
+            is_workers_initialized = true;
+
+          } else {
+            RerunWorkers(steps_number);
+          }
+
+          current_state = RUNNING;
+          break;
+        }
+
+        case QUIT:
+          StopWorkers();
+          ReleaseResources(workers);
+          break;
+
+        case WRONG_COMMAND:
+          cout << "You've entered wrong command. Try again, please.\n";
+          break;
       }
-
-      case STATUS:
-        if (current_state == BEFORE_START || current_state == RUNNING) {
-          cout << "The system can't show status in this state (" << current_state << ")\n";
-          break;
-        }
-        cout << "current_iteration = " << max_iteration << "\n";
-        life_field->show_field();
-        break;
-
-      case STOP:
-      {
-        if (current_state == BEFORE_START || current_state == STARTED_NOT_RUNNING) {
-          cout << "The system isn't running now.\n";
-          break;
-        }
-        
-        LockIterationSemaphores();
-        max_iteration = GetExtremeCurrentIteration(MAX_EXTREME);
-        UnlockIterationSemaphores();
-
-        current_state = STARTED_NOT_RUNNING;
-        break;
-      }
-
-      case RUN: 
-      {
-        string steps_number_string;
-        cin >> steps_number_string;
-
-        if (current_state == BEFORE_START) {
-          cout << "You can't run system before start.\n";
-          break;
-        }
-
-        if (current_state == RUNNING) {
-          cout << "the system is already running.\n";
-          break;
-        }
-
-        int steps_number;
-
-        try {
-          steps_number = std::atoi(steps_number_string.c_str());
-        } catch(std::invalid_argument& e) {
-          cout << "Enter correct NUMBER of steps, please.\n";
-          break;
-        } catch (std::out_of_range &e) {
-          cout << "Too big value of number of steps.\n";
-          break;
-        }
-
-        if (!is_workers_initialized) {
-
-          max_iteration += steps_number;
-          CreateWorkers(workers, life_field);
-          is_workers_initialized = true;
-
-        } else {
-          RerunWorkers(steps_number);
-        }
-
-        current_state = RUNNING;
-        break;
-      }
-
-      case QUIT:
-        StopWorkers();
-        ReleaseResources(workers);
-        break;
-
-      case WRONG_COMMAND:
-        cout << "You've entered wrong command. Try again, please.\n";
-        break;
     }
   }
   return 0;

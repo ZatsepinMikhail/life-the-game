@@ -47,15 +47,11 @@ int GetExtremeCurrentIteration(ExtremeType extremum) {
   return current_extreme_iteration;
 }
 
-void InitializeWorkerStructures(vector<pthread_t>& workers) {
-  workers.resize(workers_number);
-  border_mutexes.resize(workers_number, PTHREAD_MUTEX_INITIALIZER);
-  border_cond_variables.resize(workers_number, PTHREAD_COND_INITIALIZER);
-  worker_states.resize(workers_number, 0);
-  worker_iterations.resize(workers_number, 0);
-  iteration_semaphores.resize(workers_number);
-  for (int i = 0; i < workers_number; ++i) {
-    sem_init(&iteration_semaphores[i], 0, 1);
+void InitializeWorkerStructures() {
+  int id = omp_get_thread_num();
+  if (id == 1) {
+#pragma omp parallel threads_num(workers_number)
+
   }
 }
 
@@ -72,8 +68,6 @@ void CreateWorkers(vector<pthread_t>& workers, Field* life_field) {
 
 
 void RerunWorkers(int steps_number) {
-  LockIterationSemaphores();
-
   pthread_mutex_lock(&game_finished_mutex);
 
   max_iteration += steps_number;

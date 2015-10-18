@@ -27,9 +27,6 @@ extern unsigned short workers_number;
 
 extern bool game_finished;
 
-extern vector<pthread_mutex_t> border_mutexes;
-extern vector<pthread_cond_t> border_cond_variables;
-extern vector<unsigned char> worker_states;
 extern vector<unsigned int> worker_iterations;
 extern vector<sem_t> iteration_semaphores;
 extern pthread_mutex_t game_finished_mutex;

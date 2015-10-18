@@ -11,5 +11,7 @@
 #include <sys/types.h>
 #include <vector>
 
+#include <omp.h>
+
 using std::vector;
 using std::string;
