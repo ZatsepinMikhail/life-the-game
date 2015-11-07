@@ -43,18 +43,15 @@ int GetExtremeCurrentIteration(ExtremeType extremum) {
 
 void RunWorkers(Field* life_field) {
   int id = omp_get_thread_num();
-  //std::cout << omp_get_nested() << "\n";
+
   omp_set_nested(1);
-  //std::cout << omp_get_nested() << "\n";
   if (id == 1) {
-    //std::cout << "HERE\n";
+
 #pragma omp parallel num_threads(workers_number)
     {
-      //std::cout << "HERE\n";
       WorkerFuncArg *arg = new WorkerFuncArg();
       arg->field = life_field;
       arg->id = omp_get_thread_num();
-      //std::cout << arg->id << "\n";
       WorkerFunction(arg);
     }
   }
@@ -63,7 +60,7 @@ void RunWorkers(Field* life_field) {
 void StopWorkers() {
 #pragma omp critical(max_iteration)
   {
-    max_iteration = -1;
+    max_iteration = worker_iterations[1] + 1;
   }
 }
 

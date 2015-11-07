@@ -6,23 +6,7 @@ clock_t end_time;
 unsigned int max_iteration = 0;
 unsigned short workers_number = 0;
 
-bool game_finished = false;
-
-/*
-There are 3 states of each thread:
-0 - isn't red by other workers
-1 - only left border is red by other worker
-2 - two borders are red by other workers
-*/
-vector<unsigned char> worker_states;
-
 vector<unsigned int> worker_iterations;
-
-vector<sem_t> iteration_semaphores;
-
-pthread_mutex_t game_finished_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t game_finished_cond_variable;
-
 
 bool CalculateOneCell(Field* life_field, int row, int cell,
                       ExtraRowType need_extra_row, const vector<bool>& extra_row) {

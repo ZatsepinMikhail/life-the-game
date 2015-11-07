@@ -29,6 +29,6 @@ bool CalculateOneCell(Field* life_field, int row, int cell,
 void CalculateNextStep(Field* life_field, int lower_bound, int upper_bound, 
                        const vector<vector<bool> >& neighbour_rows);
 
-bool NeedNextStep(int worker_id, Field* life_field);
+bool NeedNextStep(int worker_id);
 
 void* WorkerFunction(void* structed_args);
