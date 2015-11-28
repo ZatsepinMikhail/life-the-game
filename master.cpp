@@ -114,7 +114,7 @@ void MasterRoutine(const int comm_size) {
 
         bool *curr_start_point = field_buffer;
         int control_message = 0;
-        for (int i = comm_size - 1; i >= 1; --i) {
+        for (int i = comm_size - 1; i > 0; --i) {
           if (i == comm_size - 1) {
             initial_field_info[0] += life_field->height_ % (comm_size - 1);
           }
@@ -126,7 +126,13 @@ void MasterRoutine(const int comm_size) {
           curr_start_point += initial_field_info[0] * life_field->width_;
         }
 
-        StructureFieldPieceRaw(field_buffer, life_field->field_);
+
+        int curr_index = 0;
+        for (int i = 0; i < life_field->height_; ++i) {
+          for (int j = 0; j < life_field->width_; ++j, ++curr_index) {
+            life_field->field_[i][j] = field_buffer[curr_index];
+          }
+        }
 
         std::cout << "at iteration " << current_iteration << "\n";
         life_field->show_field();

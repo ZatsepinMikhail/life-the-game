@@ -75,7 +75,7 @@ void SerializeRow(const vector<bool>& row, bool* raw_row) {
   }
 }
 
-void DeserializeRow(vector<bool>& row, bool* raw_row) {
+void StructureRow(vector<bool>& row, bool* raw_row) {
   for (int i = 0; i < row.size(); ++i) {
     row[i] = raw_row[i];
   }
@@ -120,12 +120,12 @@ bool NeedNextStep(const int comm_size, const int rank,
     switch (status.MPI_TAG) {
       case RUN_WORKERS:
         max_iteration += control_message;
+        ++curr_iteration;
         need_irecv = true;
         return true;
       case QUIT_WORKERS:
         return false;
       case STOP_WORKERS:
-
         break;
       case GATHER_NEXT_STEP:
         SerializeField(field_piece, raw_field_piece);
@@ -164,7 +164,7 @@ bool NeedNextStep(const int comm_size, const int rank,
   return true;
 }
 
-void StructureFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field) {
+void StructureExpandedFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field) {
   int curr_index = 0;
   for (int i = 1; i <= height; ++i) {
     for (int j = 0; j < width; ++j, ++curr_index) {
@@ -191,7 +191,7 @@ void WorkerRoutine(const int comm_size, const int rank) {
 
   vector<bool> empty_initializer(width, false);
   vector<vector<bool> > field_piece(expanded_height, empty_initializer);
-  StructureFieldPieceRaw(raw_field_piece, field_piece);
+  StructureExpandedFieldPieceRaw(raw_field_piece, field_piece);
 
   int lower_worker_rank = (rank == 1) ? (comm_size - 1) : (rank - 1);
   int upper_worker_rank = (rank == comm_size - 1) ? 1 : (rank + 1);
@@ -241,8 +241,8 @@ void WorkerRoutine(const int comm_size, const int rank) {
 
       curr_structed_raw_send = height;
     }
-    DeserializeRow(field_piece[0], lower_raw_row_recv);
-    DeserializeRow(field_piece[expanded_height - 1], upper_raw_row_recv);
+    StructureRow(field_piece[0], lower_raw_row_recv);
+    StructureRow(field_piece[expanded_height - 1], upper_raw_row_recv);
     CalculateNextStep(field_piece);
   }
 

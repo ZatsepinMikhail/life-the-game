@@ -16,5 +16,3 @@ bool NeedNextStep(const int comm_size, const int rank,
                   bool* raw_field_piece, const vector<vector<bool> >& field_piece);
 
 void WorkerRoutine(const int worker_number, const int rank);
-
-void StructureFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field);
