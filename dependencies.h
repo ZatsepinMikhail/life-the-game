@@ -5,7 +5,6 @@
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
-#include <pthread.h>
 #include <random>
 #include <ratio>
 #include <semaphore.h>
@@ -27,3 +26,8 @@ enum MessageType {
   QUIT_WORKERS,
   STOP_WORKERS
 };
+
+/* ToDoList
+
+ */
+

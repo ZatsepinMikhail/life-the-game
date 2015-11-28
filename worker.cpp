@@ -5,6 +5,7 @@ unsigned int curr_iteration = 0;
 
 int width = 0;
 int height = 0;
+int expanded_height = 0;
 
 bool* message_buffer;
 
@@ -12,8 +13,7 @@ MPI_Request stop_request;
 bool init_irecv = false;
 bool need_irecv = true;
 
-bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
-                      ExtraRowType need_extra_row, bool* extra_row) {
+bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell) {
 
   int alive_neighbour_number = 0;
 
@@ -24,19 +24,8 @@ bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
   alive_neighbour_number += field[row][cell == 0 ? width - 1 : cell - 1];
   alive_neighbour_number += field[row][(cell + 1) % width];
 
-  if (need_extra_row != ExtraRowType::NO) {
-    alive_neighbour_number += extra_row[cell == 0 ? width - 1 : cell - 1];
-    alive_neighbour_number += extra_row[(cell + 1) % width];
-    alive_neighbour_number += extra_row[cell];
-    if (need_extra_row == ExtraRowType::LOWER) {
-      lower_bound_shift = 1;
-    } else {
-      upper_bound_shift = -1;
-    }
-  }
-
   for (int i = lower_bound_shift; i <= upper_bound_shift; i += 2) {
-    int current_row = (row + i < 0) ? height - 1 : ((row + i) % height);
+    int current_row = (row + i < 0) ? (expanded_height - 1) : ((row + i) % expanded_height);
     for (int j = -1; j <= 1; ++j) {
       int current_cell = (cell + j < 0) ? (width - 1) : ((cell + j) % width);
       alive_neighbour_number += field[current_row][current_cell];
@@ -48,30 +37,17 @@ bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell,
 }
 
 
-void CalculateNextStep(vector<vector<bool> >& field_piece,
-                       bool* lower_raw_row, bool* upper_raw_row) {
+void CalculateNextStep(vector<vector<bool> >& field_piece) {
 
   vector<vector<bool>> next_step_field_piece(field_piece);
 
-  for (int i = 0; i < height; ++i) {
+  for (int i = 0; i < expanded_height; ++i) {
     for (int j = 0; j < width; ++j) {
-      if (i == 0) {
-
-        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::LOWER, lower_raw_row);
-
-      } else if (i == height - 1) {
-
-        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::UPPER, upper_raw_row);
-
-      } else {
-
-        next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j, ExtraRowType::NO, NULL);
-
-      }
+      next_step_field_piece[i][j] = CalculateOneCell(field_piece, i, j);
     }
   }
 
-  for (int i = 0; i < height; ++i) {
+  for (int i = 0; i < expanded_height; ++i) {
     field_piece[i] = next_step_field_piece[i];
   }
 }
@@ -104,9 +80,15 @@ void SerializeRow(const vector<bool>& row, bool* raw_row) {
   }
 }
 
+void DeserializeRow(vector<bool>& row, bool* raw_row) {
+  for (int i = 0; i < row.size(); ++i) {
+    row[i] = raw_row[i];
+  }
+}
+
 void SerializeField(const vector<vector<bool> >& field, bool* raw_field) {
   int shift = 0;
-  for (int i = 0; i < field.size(); ++i) {
+  for (int i = 1; i <= height; ++i) {
     SerializeRow(field[i], raw_field + shift);
     shift += width;
   }
@@ -199,7 +181,7 @@ bool NeedNextStep(const int comm_size, const int rank,
 
 void StructureFieldPieceRaw(bool* raw_field, vector<vector<bool> >& structured_field) {
   int curr_index = 0;
-  for (int i = 0; i < structured_field.size(); ++i) {
+  for (int i = 1; i < structured_field.size() - 1; ++i) {
     for (int j = 0; j < structured_field[0].size(); ++j, ++curr_index) {
       structured_field[i][j] = raw_field[curr_index];
     }
@@ -212,10 +194,13 @@ void WorkerRoutine(const int comm_size, const int rank) {
   int initial_field_info[2];
 
   MPI_Status status;
+
+  //change 0 to constant
   MPI_Recv(initial_field_info, 2, MPI::INT, 0, INITIAL_FIELD_INFO, MPI_COMM_WORLD, &status);
 
   height = initial_field_info[0];
   width = initial_field_info[1];
+  expanded_height = height + 2;
 
   int piece_size = width * height;
 
@@ -223,7 +208,7 @@ void WorkerRoutine(const int comm_size, const int rank) {
   MPI_Recv(raw_field_piece, piece_size, MPI::BOOL, 0, INITIAL_FIELD, MPI_COMM_WORLD, &status);
 
   vector<bool> empty_initializer(width, false);
-  vector<vector<bool> > field_piece(height, empty_initializer);
+  vector<vector<bool> > field_piece(expanded_height, empty_initializer);
   StructureFieldPieceRaw(raw_field_piece, field_piece);
   //end
 
@@ -239,7 +224,7 @@ void WorkerRoutine(const int comm_size, const int rank) {
 
   while(NeedNextStep(comm_size, rank, raw_field_piece, field_piece)) {
 
-    int curr_structed_raw_send = 0;
+    int curr_structed_raw_send = 1;
 
     int curr_neighbour_rank_send = lower_worker_rank;
     int curr_neighbour_rank_recv = upper_worker_rank;
@@ -276,10 +261,11 @@ void WorkerRoutine(const int comm_size, const int rank) {
       curr_raw_row_send = upper_raw_row_send;
       curr_raw_row_recv = lower_raw_row_recv;
 
-      curr_structed_raw_send = height - 1;
+      curr_structed_raw_send = height;
     }
-
-    CalculateNextStep(field_piece, lower_raw_row_recv, upper_raw_row_recv);
+    DeserializeRow(field_piece[0], lower_raw_row_recv);
+    DeserializeRow(field_piece[expanded_height - 1], upper_raw_row_recv);
+    CalculateNextStep(field_piece);
   }
 
   delete[] message_buffer;
