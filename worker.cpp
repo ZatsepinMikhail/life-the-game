@@ -143,13 +143,13 @@ bool NeedNextStep(const int comm_size, const int rank,
     MPI_Test(&stop_request, &flag, &status);
     if (flag) {
       init_irecv = false;
-      if (max_iteration - curr_iteration <= 10) {
+      if (max_iteration - curr_iteration <= 1) {
         ++curr_iteration;
         return true;
       }
 
-      max_iteration = curr_iteration + 10;
-      std::cout << "new max iteration = " << max_iteration << "\n";
+      max_iteration = curr_iteration + 2;
+
       SerializeIteration(message_buffer, width, max_iteration);
 
       for (int i = 2; i < comm_size; ++i) {
