@@ -140,7 +140,7 @@ void MasterRoutine(const int comm_size) {
         }
 
         int stop_message = 0;
-        MPI_Send(&stop_message, 1, MPI::INT, 1, STOP_WORKERS, MPI_COMM_WORLD);
+        MPI_Send(&stop_message, 1, MPI::INT, MANAGER, STOP_WORKERS, MPI_COMM_WORLD);
 
         MPI_Status status;
         for (int i = 1; i < comm_size; ++i) {

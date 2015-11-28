@@ -27,6 +27,9 @@ enum MessageType {
   STOP_WORKERS
 };
 
+const int MASTER = 0;
+const int MANAGER = 1;
+
 /* ToDoList
 
  */

@@ -17,7 +17,9 @@ int main(int argc, char** argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  if (rank == 0) {
+  if (size <= 1) {
+    cout << "There is no available workers!\n";
+  } else if (rank == MASTER) {
     MasterRoutine(size);
   } else {
     WorkerRoutine(size, rank);
