@@ -175,7 +175,7 @@ void MasterRoutine(const int comm_size) {
         int steps_number;
 
         try {
-          steps_number = std::stoi(steps_number_string);
+          steps_number = std::atoi(steps_number_string.c_str());
         } catch(std::invalid_argument& e) {
           std::cout << "Enter correct NUMBER of steps, please.\n";
           break;

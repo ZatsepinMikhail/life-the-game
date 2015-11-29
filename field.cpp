@@ -13,8 +13,8 @@ Field::Field(string field_info) {
     string height_string = field_info.substr(0, x_pos);
     string width_string = field_info.substr(x_pos + 1, field_info.size());
 
-    height_ = stoi(height_string);
-    width_ = stoi(width_string);
+    height_ = atoi(height_string.c_str());
+    width_ = atoi(width_string.c_str());
     if (height_ <= 0 || width_ <= 0) {
       throw std::invalid_argument("Width and height of field should be positive.");
     }
@@ -40,11 +40,10 @@ void Field::random_field_init() {
   vector<bool> row(width_);
   field_.resize(height_, row);
 
-  std::default_random_engine generator;
-  std::uniform_int_distribution<int> distribution(1, 100);
+  srand(time(NULL));
   for (size_t i = 0; i < height_; ++i) {
     for (size_t j = 0; j < width_; ++j) {
-      field_[i][j] = distribution(generator) % 2;
+      field_[i][j] = rand() % 2;
     }
   }
 }

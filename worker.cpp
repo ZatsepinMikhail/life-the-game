@@ -34,7 +34,7 @@ bool CalculateOneCell(vector<vector<bool> >& field, int row, int cell) {
 
 void CalculateNextStep(vector<vector<bool> >& field_piece) {
 
-  vector<vector<bool>> next_step_field_piece(field_piece);
+  vector<vector<bool> > next_step_field_piece(field_piece);
 
   for (int i = 1; i < expanded_height - 1; ++i) {
     for (int j = 0; j < width; ++j) {
